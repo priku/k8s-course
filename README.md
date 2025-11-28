@@ -9,6 +9,7 @@ This repository contains my solutions for the [DevOps with Kubernetes](https://d
 - [1.2](https://github.com/priku/k8s-course/tree/1.2/todo-project) - Todo Project: Web server with configurable PORT environment variable
 - [1.3](https://github.com/priku/k8s-course/tree/1.3/log-output) - Log Output: Declarative deployment with Kubernetes
 - [1.4](https://github.com/priku/k8s-course/tree/1.4/todo-project) - Todo Project: Declarative deployment with Kubernetes
+- [1.5](https://github.com/priku/k8s-course/tree/1.5/todo-project) - Todo Project: HTTP server responding to GET requests with HTML page
 
 ## Project Structure
 
