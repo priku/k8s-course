@@ -1,0 +1,11 @@
+# IDE and editor settings
+.claude/
+.vscode/
+.idea/
+
+# Personal notes
+SUBMISSION_GUIDE.md
+
+# OS files
+.DS_Store
+Thumbs.db
