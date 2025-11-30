@@ -2,6 +2,9 @@
 .claude/
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # Personal notes
 SUBMISSION_GUIDE.md
@@ -9,3 +12,51 @@ SUBMISSION_GUIDE.md
 # OS files
 .DS_Store
 Thumbs.db
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+**/.env
+**/secret.yaml
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.Python
+venv/
+ENV/
+
+# Build outputs
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.exe~
+*.test
+*.out
+go.work
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.coverage
+*.cover
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
