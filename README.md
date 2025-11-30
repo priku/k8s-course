@@ -32,9 +32,10 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **1.3** - Log Output: Declarative Kubernetes deployment
 - [x] **1.4** - Todo Project: Declarative Kubernetes deployment
 - [x] **1.5** - Todo Project: HTTP server with HTML response
+- [x] **1.6** - Todo Project: NodePort Service
 
 ### In Progress
-- [ ] **1.6-1.10** - Advanced Kubernetes concepts
+- [ ] **1.7-1.10** - Advanced Kubernetes concepts
 - [ ] Azure AI services integration
 - [ ] Microservices architecture
 
@@ -227,6 +228,7 @@ kubectl port-forward deployment/todo-project-dep 3003:3000
 - [1.3](../../tree/1.3/log-output) - Log Output: Declarative deployment with Kubernetes
 - [1.4](../../tree/1.4/todo-project) - Todo Project: Declarative deployment with Kubernetes
 - [1.5](../../tree/1.5/todo-project) - Todo Project: HTTP server responding to GET requests with HTML page
+- [1.6](../../tree/1.6/todo-project) - Todo Project: NodePort Service for external access
 
 ## Project Structure
 
