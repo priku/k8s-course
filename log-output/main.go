@@ -64,8 +64,10 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	hash := state.randomString
 	state.mu.RUnlock()
 
-	html := fmt.Sprintf(`
-<!DOCTYPE html>
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Write HTML template with embedded values
+	fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -79,7 +81,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -175,9 +177,5 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
         </div>
     </div>
 </body>
-</html>
-`, timestamp, hash)
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, html)
+</html>`, timestamp, hash)
 }
