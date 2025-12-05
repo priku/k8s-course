@@ -13,6 +13,9 @@ RUN go build -o log-output main.go
 # Run stage
 FROM alpine:latest
 
+# Install timezone data
+RUN apk add --no-cache tzdata
+
 WORKDIR /app
 
 COPY --from=builder /app/log-output .

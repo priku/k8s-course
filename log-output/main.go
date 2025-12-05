@@ -20,12 +20,20 @@ type AppState struct {
 var state AppState
 
 func main() {
+	// Load Helsinki timezone
+	loc, err := time.LoadLocation("Europe/Helsinki")
+	if err != nil {
+		fmt.Printf("Warning: Could not load Europe/Helsinki timezone, using UTC: %v\n", err)
+		loc = time.UTC
+	}
+
 	// Generate a random string on startup
 	state.randomString = uuid.New().String()
-	state.lastUpdate = time.Now().UTC()
+	state.lastUpdate = time.Now().In(loc)
 
 	fmt.Println("Log output application started")
 	fmt.Printf("Random string: %s\n", state.randomString)
+	fmt.Printf("Timezone: %s\n", loc.String())
 
 	// Start HTTP server in a goroutine
 	go startHTTPServer()
@@ -36,8 +44,8 @@ func main() {
 
 	for range ticker.C {
 		state.mu.Lock()
-		state.lastUpdate = time.Now().UTC()
-		timestamp := state.lastUpdate.Format(time.RFC3339Nano)
+		state.lastUpdate = time.Now().In(loc)
+		timestamp := state.lastUpdate.Format(time.RFC3339)
 		state.mu.Unlock()
 
 		fmt.Printf("%s: %s\n", timestamp, state.randomString)
@@ -60,7 +68,7 @@ func startHTTPServer() {
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
 	state.mu.RLock()
-	timestamp := state.lastUpdate.Format(time.RFC3339Nano)
+	timestamp := state.lastUpdate.Format("2006-01-02 15:04:05 MST")
 	hash := state.randomString
 	state.mu.RUnlock()
 
