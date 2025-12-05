@@ -30,7 +30,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo Project - Exercise 1.5</title>
+    <title>Todo Project - Exercise 1.8</title>
     <style>
         * {
             margin: 0;
@@ -124,13 +124,13 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <h1>Todo Project</h1>
-        <p class="subtitle">DevOps with Kubernetes - Exercise 1.5</p>
+        <p class="subtitle">DevOps with Kubernetes - Exercise 1.8</p>
 
         <div class="info-box">
             <h2>Application Information</h2>
             <p><strong>Status:</strong> Running successfully in Kubernetes cluster</p>
             <p><strong>Port:</strong> ` + os.Getenv("PORT") + `</p>
-            <p><strong>Exercise:</strong> 1.5 - Project Step 3</p>
+            <p><strong>Exercise:</strong> 1.8 - Project Step 5</p>
         </div>
 
         <div class="info-box">
@@ -140,7 +140,9 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
                 <li>Environment variable configuration (PORT)</li>
                 <li>Kubernetes deployment with proper manifests</li>
                 <li>Docker containerization with multi-stage build</li>
-                <li>Accessible via kubectl port-forward</li>
+                <li>ClusterIP Service for internal routing</li>
+                <li>Ingress for external access (via Traefik)</li>
+                <li>Accessible via http://localhost:8081</li>
             </ul>
         </div>
 
