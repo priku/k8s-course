@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -22,14 +23,24 @@ func main() {
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {
-	// Read from shared file
-	data, err := os.ReadFile("/usr/src/app/files/output.txt")
+	// Read log output
+	logData, err := os.ReadFile("/usr/src/app/files/output.txt")
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintf(w, "Error reading file: %v", err)
+		fmt.Fprintf(w, "Error reading log file: %v", err)
 		return
 	}
 
+	// Read ping-pong counter
+	counterData, err := os.ReadFile("/usr/src/app/files/pingpong.txt")
+	counter := "0"
+	if err == nil {
+		counter = strings.TrimSpace(string(counterData))
+	}
+
+	// Combine output
+	output := strings.TrimSpace(string(logData)) + "\nPing / Pongs: " + counter
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write(data)
+	fmt.Fprint(w, output)
 }
