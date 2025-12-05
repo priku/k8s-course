@@ -33,9 +33,14 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **1.4** - Todo Project: Declarative Kubernetes deployment
 - [x] **1.5** - Todo Project: HTTP server with HTML response
 - [x] **1.6** - Todo Project: NodePort Service
+- [x] **1.7** - Log Output: HTTP endpoint with Ingress
+- [x] **1.8** - Todo Project: Ingress configuration
+- [x] **1.9** - Ping-pong application with shared Ingress
+- [x] **1.10** - Log Output: Split into two containers
+- [x] **1.11** - Share data between applications with PersistentVolume
+- [x] **1.12** - Todo Project: Cached daily image from Lorem Picsum
 
 ### In Progress
-- [ ] **1.7-1.10** - Advanced Kubernetes concepts
 - [ ] Azure AI services integration
 - [ ] Microservices architecture
 
