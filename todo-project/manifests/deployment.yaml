@@ -18,7 +18,7 @@ spec:
             claimName: todo-project-image-pvc
       containers:
         - name: todo-project
-          image: todo-project:v1.12
+          image: todo-project:v1.13
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT

@@ -149,7 +149,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo Project - Exercise 1.12</title>
+    <title>Todo Project - Exercise 1.13</title>
     <style>
         * {
             margin: 0;
@@ -207,23 +207,26 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             color: #333;
             margin-bottom: 15px;
         }
-        .todo-input {
+        .todo-form {
             display: flex;
             gap: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
-        .todo-input input {
+        .todo-form input {
             flex: 1;
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 1em;
         }
-        .todo-input input:focus {
+        .todo-form input:focus {
             outline: none;
             border-color: #667eea;
         }
-        .todo-input button {
+        .todo-form input.invalid {
+            border-color: #ef4444;
+        }
+        .todo-form button {
             padding: 12px 24px;
             background: #667eea;
             color: white;
@@ -233,50 +236,150 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             font-size: 1em;
             font-weight: 600;
         }
-        .todo-input button:hover {
+        .todo-form button:hover {
             background: #5a6fd6;
         }
-        .status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .todo-form button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .char-count {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 20px;
+        }
+        .char-count.warning {
+            color: #f59e0b;
+        }
+        .char-count.error {
+            color: #ef4444;
+        }
+        .todo-list {
+            list-style: none;
             margin-top: 20px;
         }
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            background: #10b981;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+        .todo-list li {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .todo-list li:last-child {
+            margin-bottom: 0;
+        }
+        .todo-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #667eea;
+            border-radius: 4px;
+            margin-right: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .todo-checkbox.checked {
+            background: #667eea;
+            color: white;
+        }
+        .todo-text {
+            flex: 1;
+            color: #333;
+        }
+        .todo-text.completed {
+            text-decoration: line-through;
+            color: #888;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Todo Project</h1>
-        <p class="subtitle">DevOps with Kubernetes - Exercise 1.12</p>
+        <p class="subtitle">DevOps with Kubernetes - Exercise 1.13</p>
 
         <img src="/image" alt="Daily random image" class="daily-image">
         <p class="image-caption">Random image from Lorem Picsum (refreshes every 10 minutes)</p>
 
         <div class="todo-section">
             <h2>Create TODO</h2>
-            <div class="todo-input">
-                <input type="text" placeholder="Enter a new todo..." maxlength="140">
-                <button>Create TODO</button>
-            </div>
-            <p style="color: #888; font-size: 0.85em;">Maximum 140 characters</p>
-        </div>
+            <form class="todo-form" onsubmit="return false;">
+                <input type="text" id="todoInput" placeholder="Enter a new todo..." maxlength="140" oninput="updateCharCount()">
+                <button type="button" id="sendBtn" onclick="sendTodo()">Send</button>
+            </form>
+            <p class="char-count" id="charCount">0/140 characters</p>
 
-        <div class="status">
-            <div class="status-indicator"></div>
-            <span style="color: #10b981; font-weight: 600;">Application is running</span>
+            <h2 style="margin-top: 30px;">TODOs</h2>
+            <ul class="todo-list">
+                <li>
+                    <div class="todo-checkbox checked">✓</div>
+                    <span class="todo-text completed">Learn Kubernetes basics</span>
+                </li>
+                <li>
+                    <div class="todo-checkbox checked">✓</div>
+                    <span class="todo-text completed">Create Docker images</span>
+                </li>
+                <li>
+                    <div class="todo-checkbox"></div>
+                    <span class="todo-text">Deploy todo app to cluster</span>
+                </li>
+                <li>
+                    <div class="todo-checkbox"></div>
+                    <span class="todo-text">Add persistent storage</span>
+                </li>
+                <li>
+                    <div class="todo-checkbox"></div>
+                    <span class="todo-text">Implement backend API for todos</span>
+                </li>
+            </ul>
         </div>
     </div>
+
+    <script>
+        function updateCharCount() {
+            const input = document.getElementById('todoInput');
+            const charCount = document.getElementById('charCount');
+            const sendBtn = document.getElementById('sendBtn');
+            const len = input.value.length;
+            
+            charCount.textContent = len + '/140 characters';
+            
+            if (len > 140) {
+                charCount.className = 'char-count error';
+                input.className = 'invalid';
+                sendBtn.disabled = true;
+            } else if (len > 120) {
+                charCount.className = 'char-count warning';
+                input.className = '';
+                sendBtn.disabled = false;
+            } else {
+                charCount.className = 'char-count';
+                input.className = '';
+                sendBtn.disabled = false;
+            }
+        }
+
+        function sendTodo() {
+            const input = document.getElementById('todoInput');
+            const value = input.value.trim();
+            
+            if (value.length === 0) {
+                alert('Please enter a todo');
+                return;
+            }
+            
+            if (value.length > 140) {
+                alert('Todo must be 140 characters or less');
+                return;
+            }
+            
+            alert('Todo functionality will be implemented in a future exercise!\\nYour todo: ' + value);
+            input.value = '';
+            updateCharCount();
+        }
+    </script>
 </body>
 </html>
 `
