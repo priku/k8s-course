@@ -27,6 +27,8 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 ## 🚀 Current Status
 
 ### Completed Exercises
+
+#### Part 1
 - [x] **1.1** - Log Output: UUID generation with timestamps
 - [x] **1.2** - Todo Project: Basic HTTP server
 - [x] **1.3** - Log Output: Declarative Kubernetes deployment
@@ -40,6 +42,9 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **1.11** - Share data between applications with PersistentVolume
 - [x] **1.12** - Todo Project: Cached daily image from Lorem Picsum
 - [x] **1.13** - Todo Project: Todo list with input field, validation, and hardcoded todos
+
+#### Part 2
+- [x] **[2.1](../../tree/2.1/log-output)** - Connecting pods: HTTP communication between log-output and ping-pong
 
 ### In Progress
 - [ ] Azure AI services integration
