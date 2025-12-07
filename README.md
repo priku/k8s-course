@@ -45,6 +45,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 
 #### Part 2
 - [x] **[2.1](https://github.com/priku/k8s-course/tree/2.1)** - Connecting pods: HTTP communication between log-output and ping-pong
+- [x] **[2.2](https://github.com/priku/k8s-course/tree/2.2)** - Todo Backend: REST API service with GET/POST endpoints for todos
 
 ### In Progress
 - [ ] Azure AI services integration
