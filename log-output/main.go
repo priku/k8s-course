@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +17,7 @@ type AppState struct {
 	mu           sync.RWMutex
 	randomString string
 	lastUpdate   time.Time
+	pongCount    int
 }
 
 var state AppState
@@ -43,13 +46,46 @@ func main() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		// Fetch pong count from ping-pong service
+		pongCount := fetchPongCount()
+
 		state.mu.Lock()
 		state.lastUpdate = time.Now().In(loc)
+		state.pongCount = pongCount
 		timestamp := state.lastUpdate.Format(time.RFC3339)
 		state.mu.Unlock()
 
-		fmt.Printf("%s: %s\n", timestamp, state.randomString)
+		fmt.Printf("%s: %s.\nPing / Pongs: %d\n", timestamp, state.randomString, pongCount)
 	}
+}
+
+func fetchPongCount() int {
+	// Get the ping-pong service URL from environment or use default
+	pingPongURL := os.Getenv("PING_PONG_URL")
+	if pingPongURL == "" {
+		pingPongURL = "http://ping-pong-svc:2345/count"
+	}
+
+	resp, err := http.Get(pingPongURL)
+	if err != nil {
+		fmt.Printf("Error fetching pong count: %v\n", err)
+		return 0
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading response: %v\n", err)
+		return 0
+	}
+
+	var result map[string]int
+	if err := json.Unmarshal(body, &result); err != nil {
+		fmt.Printf("Error parsing JSON: %v\n", err)
+		return 0
+	}
+
+	return result["count"]
 }
 
 func startHTTPServer() {
@@ -70,6 +106,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	state.mu.RLock()
 	timestamp := state.lastUpdate.Format("2006-01-02 15:04:05 MST")
 	hash := state.randomString
+	pongCount := state.pongCount
 	state.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -80,7 +117,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Output - Exercise 1.7</title>
+    <title>Log Output - Exercise 2.1</title>
     <style>
         * {
             margin: 0;
@@ -165,7 +202,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <h1>Log Output</h1>
-        <p class="subtitle">DevOps with Kubernetes - Exercise 1.7</p>
+        <p class="subtitle">DevOps with Kubernetes - Exercise 2.1</p>
 
         <div class="info-box">
             <h2>Current Status</h2>
@@ -179,11 +216,17 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
             <div class="hash">%s</div>
         </div>
 
+        <div class="info-box">
+            <h2>Ping / Pongs</h2>
+            <p><strong>Count:</strong></p>
+            <div class="hash">%d</div>
+        </div>
+
         <div class="status">
             <div class="status-indicator"></div>
             <span style="color: #10b981; font-weight: 600;">Application is running</span>
         </div>
     </div>
 </body>
-</html>`, timestamp, hash)
+</html>`, timestamp, hash, pongCount)
 }
