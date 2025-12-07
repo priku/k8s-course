@@ -149,7 +149,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo Project - Exercise 1.13</title>
+    <title>Todo Project - Exercise 2.2</title>
     <style>
         * {
             margin: 0;
@@ -298,7 +298,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <h1>Todo Project</h1>
-        <p class="subtitle">DevOps with Kubernetes - Exercise 1.13</p>
+        <p class="subtitle">DevOps with Kubernetes - Exercise 2.2</p>
 
         <img src="/image" alt="Daily random image" class="daily-image">
         <p class="image-caption">Random image from Lorem Picsum (refreshes every 10 minutes)</p>
@@ -312,40 +312,61 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             <p class="char-count" id="charCount">0/140 characters</p>
 
             <h2 style="margin-top: 30px;">TODOs</h2>
-            <ul class="todo-list">
-                <li>
-                    <div class="todo-checkbox checked">✓</div>
-                    <span class="todo-text completed">Learn Kubernetes basics</span>
-                </li>
-                <li>
-                    <div class="todo-checkbox checked">✓</div>
-                    <span class="todo-text completed">Create Docker images</span>
-                </li>
-                <li>
-                    <div class="todo-checkbox"></div>
-                    <span class="todo-text">Deploy todo app to cluster</span>
-                </li>
-                <li>
-                    <div class="todo-checkbox"></div>
-                    <span class="todo-text">Add persistent storage</span>
-                </li>
-                <li>
-                    <div class="todo-checkbox"></div>
-                    <span class="todo-text">Implement backend API for todos</span>
-                </li>
+            <ul class="todo-list" id="todoList">
+                <li id="loadingMessage">Loading todos...</li>
             </ul>
         </div>
     </div>
 
     <script>
+        const BACKEND_URL = '/api';
+
+        // Fetch todos from backend
+        async function fetchTodos() {
+            try {
+                const response = await fetch(BACKEND_URL + '/todos');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch todos');
+                }
+                const todos = await response.json();
+                renderTodos(todos);
+            } catch (error) {
+                console.error('Error fetching todos:', error);
+                document.getElementById('todoList').innerHTML = '<li>Error loading todos. Make sure backend is running.</li>';
+            }
+        }
+
+        // Render todos in the UI
+        function renderTodos(todos) {
+            const todoList = document.getElementById('todoList');
+
+            if (todos.length === 0) {
+                todoList.innerHTML = '<li>No todos yet. Create one above!</li>';
+                return;
+            }
+
+            todoList.innerHTML = todos.map(todo => {
+                const checked = todo.done ? 'checked' : '';
+                const completed = todo.done ? 'completed' : '';
+                const checkmark = todo.done ? '✓' : '';
+
+                return ` + "`" + `
+                    <li>
+                        <div class="todo-checkbox ${checked}">${checkmark}</div>
+                        <span class="todo-text ${completed}">${todo.text}</span>
+                    </li>
+                ` + "`" + `;
+            }).join('');
+        }
+
         function updateCharCount() {
             const input = document.getElementById('todoInput');
             const charCount = document.getElementById('charCount');
             const sendBtn = document.getElementById('sendBtn');
             const len = input.value.length;
-            
+
             charCount.textContent = len + '/140 characters';
-            
+
             if (len > 140) {
                 charCount.className = 'char-count error';
                 input.className = 'invalid';
@@ -361,24 +382,47 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        function sendTodo() {
+        async function sendTodo() {
             const input = document.getElementById('todoInput');
             const value = input.value.trim();
-            
+
             if (value.length === 0) {
                 alert('Please enter a todo');
                 return;
             }
-            
+
             if (value.length > 140) {
                 alert('Todo must be 140 characters or less');
                 return;
             }
-            
-            alert('Todo functionality will be implemented in a future exercise!\\nYour todo: ' + value);
-            input.value = '';
-            updateCharCount();
+
+            try {
+                const response = await fetch(BACKEND_URL + '/todos', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: value })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create todo');
+                }
+
+                // Clear input and refresh todos
+                input.value = '';
+                updateCharCount();
+                fetchTodos();
+            } catch (error) {
+                console.error('Error creating todo:', error);
+                alert('Failed to create todo. Please try again.');
+            }
         }
+
+        // Load todos when page loads
+        window.onload = function() {
+            fetchTodos();
+        };
     </script>
 </body>
 </html>
