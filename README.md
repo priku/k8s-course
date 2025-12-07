@@ -39,6 +39,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **1.10** - Log Output: Split into two containers
 - [x] **1.11** - Share data between applications with PersistentVolume
 - [x] **1.12** - Todo Project: Cached daily image from Lorem Picsum
+- [x] **1.13** - Todo Project: Todo list with input field, validation, and hardcoded todos
 
 ### In Progress
 - [ ] Azure AI services integration
