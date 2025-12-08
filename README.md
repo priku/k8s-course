@@ -56,10 +56,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[2.10](https://github.com/priku/k8s-course/tree/2.10)** - CronJob: Scheduled Wikipedia todo fetcher
 
 #### Part 3: Cloud Deployment (Azure AKS)
-- [ ] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer
-
-### In Progress
-- [x] **3.1** - Setting up Azure AKS infrastructure with Terraform (Azure Verified Modules)
+- [ ] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer (Infrastructure ready, deployment pending)
 
 ---
 
@@ -193,8 +190,10 @@ docker push $ACR_NAME.azurecr.io/ping-pong:latest
 ### Current
 - **Language**: Go 1.21
 - **Container**: Docker
-- **Orchestration**: Kubernetes (k3d)
-- **Tools**: kubectl, k3d
+- **Orchestration**: Kubernetes (k3d local, AKS cloud)
+- **Infrastructure**: Terraform with Azure Verified Modules
+- **Cloud**: Azure (AKS, ACR)
+- **Tools**: kubectl, k3d, Azure CLI
 
 ### Planned
 - **Frontend**: React + TypeScript + Tailwind CSS
@@ -208,19 +207,27 @@ docker push $ACR_NAME.azurecr.io/ping-pong:latest
 
 ## 🎓 Learning Path
 
-### Phase 1: Kubernetes Foundations (Current)
+### Phase 1: Kubernetes Foundations ✅
 - [x] Basic deployments and pods
-- [ ] Services and networking
-- [ ] ConfigMaps and Secrets
-- [ ] Persistent storage
+- [x] Services and networking
+- [x] ConfigMaps and Secrets
+- [x] Persistent storage (PersistentVolumeClaims)
+- [x] StatefulSets (PostgreSQL)
+- [x] CronJobs
 
-### Phase 2: AI Integration
+### Phase 2: Cloud Deployment (Current)
+- [x] Azure infrastructure with Terraform
+- [ ] Deploy to Azure Kubernetes Service
+- [ ] Azure Container Registry integration
+- [ ] Cloud-native services
+
+### Phase 3: AI Integration (Planned)
 - [ ] Set up Azure AI resources
 - [ ] Build Python AI service
 - [ ] Integrate with API gateway
 - [ ] Deploy to Kubernetes
 
-### Phase 3: Production Ready
+### Phase 4: Production Ready
 - [ ] Monitoring and logging
 - [ ] CI/CD pipeline
 - [ ] Security hardening
@@ -286,6 +293,11 @@ kubectl port-forward deployment/todo-project-dep 3003:3000
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
 - [k3d Documentation](https://k3d.io/)
 
+### Azure
+- [Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/)
+- [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/)
+- [Terraform AzureRM Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
+
 ### Azure AI
 - [AI-102 Learning Path](https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-engineer/)
 - [Azure AI Services Docs](https://learn.microsoft.com/en-us/azure/ai-services/)
@@ -293,74 +305,10 @@ kubectl port-forward deployment/todo-project-dep 3003:3000
 
 ---
 
-## 📝 Exercises Progress
+## 📜 Course Information
 
-### Chapter 1: Getting Started
-- [1.1](../../tree/1.1/log-output) - Log Output: Application that generates and outputs a random string with timestamp every 5 seconds
-- [1.2](../../tree/1.2/todo-project) - Todo Project: Web server with configurable PORT environment variable
-- [1.3](../../tree/1.3/log-output) - Log Output: Declarative deployment with Kubernetes
-- [1.4](../../tree/1.4/todo-project) - Todo Project: Declarative deployment with Kubernetes
-- [1.5](../../tree/1.5/todo-project) - Todo Project: HTTP server responding to GET requests with HTML page
-- [1.6](../../tree/1.6/todo-project) - Todo Project: NodePort Service for external access
-
-## Project Structure
-
-```
-.
-├── log-output/          # Exercise 1.1, 1.3 - Log output application
-│   ├── main.go
-│   ├── Dockerfile
-│   ├── go.mod
-│   └── manifests/
-│       └── deployment.yaml
-│
-└── todo-project/        # Exercise 1.2, 1.4 - Todo project application
-    ├── main.go
-    ├── Dockerfile
-    ├── go.mod
-    └── manifests/
-        └── deployment.yaml
-```
-
-## Applications
-
-### Log Output (Exercises 1.1, 1.3)
-A Go application that generates a random UUID on startup and outputs it with a timestamp every 5 seconds.
-
-**Running locally:**
-```bash
-docker build -t log-output:v1.0 log-output/
-docker run log-output:v1.0
-```
-
-**Deploying to Kubernetes:**
-```bash
-kubectl apply -f log-output/manifests/deployment.yaml
-kubectl logs -f deployment/log-output-dep
-```
-
-### Todo Project (Exercises 1.2, 1.4)
-A Go web server that can be configured via the PORT environment variable.
-
-**Running locally:**
-```bash
-docker build -t todo-project:v1.0 todo-project/
-docker run -e PORT=3000 -p 3000:3000 todo-project:v1.0
-```
-
-**Deploying to Kubernetes:**
-```bash
-kubectl apply -f todo-project/manifests/deployment.yaml
-kubectl logs -f deployment/todo-project-dep
-```
-
-## Tools Used
-- Kubernetes (k3d cluster)
-- Docker
-- Go 1.21
-- kubectl
-
-## Course Information
 - **Course:** DevOps with Kubernetes
 - **University:** University of Helsinki
 - **Credits:** 5 ECTS
+- **Submission:** Tags per exercise (e.g., `1.1`, `2.1`, `3.1`)
+
