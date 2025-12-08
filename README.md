@@ -48,6 +48,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[2.2](https://github.com/priku/k8s-course/tree/2.2)** - Todo Backend: REST API service with GET/POST endpoints for todos
 - [x] **[2.3](https://github.com/priku/k8s-course/tree/2.3)** - Namespaces: Move log-output and ping-pong to exercises namespace
 - [x] **[2.4](https://github.com/priku/k8s-course/tree/2.4)** - Project Namespace: Move todo-project and todo-backend to project namespace
+- [x] **[2.5](https://github.com/priku/k8s-course/tree/2.5)** - ConfigMaps: Add configuration file and environment variable to log-output
 
 ### In Progress
 - [ ] Azure AI services integration
