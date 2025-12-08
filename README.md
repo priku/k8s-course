@@ -55,9 +55,11 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[2.9](https://github.com/priku/k8s-course/tree/2.9)** - Daily Todos: Random daily todo from Wikipedia API
 - [x] **[2.10](https://github.com/priku/k8s-course/tree/2.10)** - CronJob: Scheduled Wikipedia todo fetcher
 
+#### Part 3: Cloud Deployment (Azure AKS)
+- [ ] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer
+
 ### In Progress
-- [ ] Azure AI services integration
-- [ ] Microservices architecture
+- [x] **3.1** - Setting up Azure AKS infrastructure with Terraform (Azure Verified Modules)
 
 ---
 
@@ -115,22 +117,73 @@ Using GPT-4 for intelligent task recommendations
 
 ```
 k8s-course/
-├── log-output/              # Exercises 1.1, 1.3
+├── log-output/              # Exercises 1.1-2.5
 │   ├── main.go
 │   ├── Dockerfile
 │   └── manifests/
 │       └── deployment.yaml
 │
-├── todo-project/            # Exercises 1.2, 1.4, 1.5
+├── todo-project/            # Exercises 1.2-2.10
 │   ├── main.go
 │   ├── Dockerfile
 │   └── manifests/
 │       └── deployment.yaml
+│
+├── ping-pong/               # Exercises 1.9-2.7
+│   ├── main.go
+│   ├── Dockerfile
+│   └── manifests/
+│
+├── todo-backend/            # Exercises 2.2-2.10
+│   ├── main.go
+│   ├── Dockerfile
+│   └── manifests/
+│
+├── terraform/               # Azure AKS Infrastructure (Part 3+)
+│   ├── main.tf              # AKS & ACR using Azure Verified Modules
+│   ├── providers.tf         # Azure provider configuration
+│   ├── variables.tf         # Configurable parameters
+│   ├── outputs.tf           # Useful outputs
+│   └── .gitignore           # Exclude state files
 │
 ├── PROJECT_PLAN.md          # Complete project roadmap
 ├── AZURE_SETUP.md           # Azure AI setup guide
 ├── SUBMISSION_GUIDE.md      # Course submission guide
 └── README.md                # This file
+```
+
+---
+
+## ☁️ Azure Infrastructure (Part 3+)
+
+Using **Azure Kubernetes Service (AKS)** instead of GKE, deployed with **Terraform** and **Azure Verified Modules (AVM)**.
+
+### Infrastructure Components
+| Resource | Type | Region |
+|----------|------|--------|
+| Resource Group | `dwk-aks-rg` | Sweden Central |
+| AKS Cluster | `dwk-aks-cluster` | 2× Standard_B2s nodes |
+| Container Registry | `dwkacr*` | Basic SKU |
+
+### Deploy Infrastructure
+```bash
+cd terraform
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+
+# Get kubeconfig
+az aks get-credentials --resource-group dwk-aks-rg --name dwk-aks-cluster --overwrite-existing
+```
+
+### Push Images to ACR
+```bash
+ACR_NAME=$(terraform output -raw acr_name)
+az acr login --name $ACR_NAME
+
+# Tag and push
+docker tag ping-pong:latest $ACR_NAME.azurecr.io/ping-pong:latest
+docker push $ACR_NAME.azurecr.io/ping-pong:latest
 ```
 
 ---
