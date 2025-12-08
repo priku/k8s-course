@@ -101,10 +101,12 @@ func handleTodos(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetTodos(w http.ResponseWriter, r *http.Request) {
+	log.Printf("GET /todos - Request from %s", r.RemoteAddr)
+
 	rows, err := db.Query("SELECT id, text, done, created_at FROM todos ORDER BY created_at DESC")
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
-		log.Printf("Error querying todos: %v", err)
+		log.Printf("GET /todos - Error querying todos: %v", err)
 		return
 	}
 	defer rows.Close()
@@ -114,11 +116,13 @@ func handleGetTodos(w http.ResponseWriter, r *http.Request) {
 		var todo Todo
 		if err := rows.Scan(&todo.ID, &todo.Text, &todo.Done, &todo.CreatedAt); err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
-			log.Printf("Error scanning todo: %v", err)
+			log.Printf("GET /todos - Error scanning todo: %v", err)
 			return
 		}
 		todos = append(todos, todo)
 	}
+
+	log.Printf("GET /todos - Returning %d todos", len(todos))
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(todos); err != nil {
@@ -128,19 +132,26 @@ func handleGetTodos(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
+	log.Printf("POST /todos - Request from %s", r.RemoteAddr)
+
 	var req CreateTodoRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("POST /todos - Invalid request body: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("POST /todos - Received todo text (length: %d): %s", len(req.Text), req.Text)
+
 	if req.Text == "" {
+		log.Printf("POST /todos - REJECTED: Empty todo text")
 		http.Error(w, "Todo text is required", http.StatusBadRequest)
 		return
 	}
 
 	// Validate length (max 140 characters)
 	if len(req.Text) > 140 {
+		log.Printf("POST /todos - REJECTED: Todo text too long (%d characters): %s", len(req.Text), req.Text)
 		http.Error(w, "Todo text must be 140 characters or less", http.StatusBadRequest)
 		return
 	}
@@ -158,7 +169,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
-		log.Printf("Error creating todo: %v", err)
+		log.Printf("POST /todos - Database error creating todo: %v", err)
 		return
 	}
 
@@ -169,7 +180,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Created todo: %s - %s\n", todo.ID, todo.Text)
+	log.Printf("POST /todos - SUCCESS: Created todo %s - %s", todo.ID, todo.Text)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
