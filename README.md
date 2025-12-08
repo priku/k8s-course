@@ -19,7 +19,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 ## 📋 Documentation
 
 - **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete architecture and roadmap
-- **[AZURE_SETUP.md](AZURE_SETUP.md)** - Azure AI services setup guide
+- **[terraform/README.md](terraform/README.md)** - Azure infrastructure setup (AKS, ACR, AI Services)
 - **[SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md)** - Course submission instructions
 
 ---
@@ -144,10 +144,10 @@ k8s-course/
 │   ├── providers.tf         # Azure provider configuration
 │   ├── variables.tf         # Configurable parameters
 │   ├── outputs.tf           # Useful outputs
+│   ├── README.md            # Azure setup guide (AKS + AI services)
 │   └── .gitignore           # Exclude state files
 │
 ├── PROJECT_PLAN.md          # Complete project roadmap
-├── AZURE_SETUP.md           # Azure AI setup guide
 ├── SUBMISSION_GUIDE.md      # Course submission guide
 └── README.md                # This file
 ```
