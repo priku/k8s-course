@@ -13,10 +13,25 @@ spec:
       labels:
         app: log-output
     spec:
+      volumes:
+        - name: config-volume
+          configMap:
+            name: log-output-config
+            items:
+              - key: information.txt
+                path: information.txt
       containers:
         - name: log-output
-          image: log-output:v2.1
+          image: log-output:v2.5
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            - name: MESSAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: log-output-config
+                  key: MESSAGE
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config

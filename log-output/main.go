@@ -38,6 +38,15 @@ func main() {
 	fmt.Printf("Random string: %s\n", state.randomString)
 	fmt.Printf("Timezone: %s\n", loc.String())
 
+	// Read file content from ConfigMap
+	fileContent := readFileContent("/etc/config/information.txt")
+
+	// Read environment variable from ConfigMap
+	envMessage := os.Getenv("MESSAGE")
+
+	fmt.Printf("file content: %s\n", fileContent)
+	fmt.Printf("env variable: MESSAGE=%s\n", envMessage)
+
 	// Start HTTP server in a goroutine
 	go startHTTPServer()
 
@@ -57,6 +66,15 @@ func main() {
 
 		fmt.Printf("%s: %s.\nPing / Pongs: %d\n", timestamp, state.randomString, pongCount)
 	}
+}
+
+func readFileContent(filepath string) string {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		fmt.Printf("Error reading file %s: %v\n", filepath, err)
+		return ""
+	}
+	return string(content)
 }
 
 func fetchPongCount() int {
