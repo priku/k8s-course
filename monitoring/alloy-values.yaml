@@ -1,0 +1,51 @@
+alloy:
+  configMap:
+    content: |
+      // Discover Kubernetes pods
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // Filter for pods in project namespace
+      discovery.relabel "project_pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          action = "keep"
+          regex = "project"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label = "pod"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label = "namespace"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app"]
+          target_label = "app"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label = "container"
+        }
+      }
+
+      // Read logs from pods
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.project_pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // Write logs to Loki
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.loki-stack.svc.cluster.local/loki/api/v1/push"
+        }
+      }
