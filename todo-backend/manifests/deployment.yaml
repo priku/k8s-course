@@ -15,10 +15,15 @@ spec:
     spec:
       containers:
         - name: todo-backend
-          image: todo-backend:v2.2
+          image: todo-backend:v2.8
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_URL
           ports:
             - containerPort: 3000
