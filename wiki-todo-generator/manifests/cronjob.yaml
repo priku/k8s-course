@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  namespace: project
+  name: wiki-todo-generator
+spec:
+  schedule: "0 * * * *"  # Run every hour at minute 0
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: wiki-todo-generator
+              image: wiki-todo-generator:v1.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: BACKEND_URL
+                  value: "http://todo-backend-svc:2345/todos"
+          restartPolicy: OnFailure

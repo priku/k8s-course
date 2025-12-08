@@ -327,9 +327,9 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 
         <div class="todo-section">
             <h2>Create TODO</h2>
-            <form class="todo-form" onsubmit="return false;">
+            <form class="todo-form" onsubmit="sendTodo(); return false;">
                 <input type="text" id="todoInput" placeholder="Enter a new todo..." maxlength="140" oninput="updateCharCount()">
-                <button type="button" id="sendBtn" onclick="sendTodo()">Send</button>
+                <button type="submit" id="sendBtn">Send</button>
             </form>
             <p class="char-count" id="charCount">0/140 characters</p>
 
