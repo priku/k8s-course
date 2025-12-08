@@ -15,8 +15,10 @@ spec:
     spec:
       containers:
         - name: ping-pong
-          image: ping-pong:v2.1
+          image: ping-pong:v2.7
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            - name: POSTGRES_URL
+              value: "postgres://postgres:example@postgres-svc:5432/postgres?sslmode=disable"
