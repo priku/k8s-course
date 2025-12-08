@@ -1,0 +1,10 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+.terraform.lock.hcl
+
+# Keep tfvars for bootstrap (contains non-sensitive data)
+# !terraform.tfvars

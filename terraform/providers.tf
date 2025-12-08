@@ -11,6 +11,15 @@ terraform {
       version = "~> 3.5"
     }
   }
+
+  # Remote backend for state storage (CI/CD)
+  # Uncomment after running bootstrap: cd bootstrap && terraform init && terraform apply
+  # backend "azurerm" {
+  #   resource_group_name  = "dwk-tfstate-rg"
+  #   storage_account_name = "dwktfstate<suffix>"  # Update with actual name from bootstrap output
+  #   container_name       = "tfstate"
+  #   key                  = "dwk-aks.tfstate"
+  # }
 }
 
 provider "azurerm" {

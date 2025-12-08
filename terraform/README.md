@@ -141,6 +141,80 @@ docker push $ACR_NAME.azurecr.io/myapp:latest
 
 ---
 
+## CI/CD with GitHub Actions
+
+This project includes a GitHub Actions workflow for automated Terraform deployments.
+
+### Setup Steps
+
+#### 1. Bootstrap State Storage (One-time)
+
+First, create the Azure Storage Account for remote state:
+
+```bash
+cd terraform/bootstrap
+terraform init
+terraform apply
+```
+
+Note the output values, then update `terraform/providers.tf` with the backend configuration.
+
+#### 2. Create Service Principal
+
+```bash
+# Create Service Principal with Contributor role
+az ad sp create-for-rbac \
+  --name "github-terraform-dwk" \
+  --role Contributor \
+  --scopes /subscriptions/3921f8c4-f431-4e3f-b001-fa10bf905e12 \
+  --sdk-auth
+```
+
+Save the JSON output - you'll need it for GitHub secrets.
+
+#### 3. Configure GitHub Secrets
+
+Add these secrets to your GitHub repository (Settings → Secrets → Actions):
+
+| Secret | Value |
+|--------|-------|
+| `ARM_CLIENT_ID` | `appId` from SP output |
+| `ARM_CLIENT_SECRET` | `password` from SP output |
+| `ARM_SUBSCRIPTION_ID` | `3921f8c4-f431-4e3f-b001-fa10bf905e12` |
+| `ARM_TENANT_ID` | `tenant` from SP output |
+
+#### 4. Create GitHub Environment
+
+Create a `production` environment in GitHub (Settings → Environments) with:
+- Required reviewers (optional, for approval before apply)
+- Deployment branch: `main`
+
+#### 5. Migrate to Remote State
+
+After bootstrap, uncomment the backend block in `providers.tf`:
+
+```bash
+cd terraform
+terraform init -migrate-state
+```
+
+### Workflow Triggers
+
+| Trigger | Action |
+|---------|--------|
+| Push to `main` (terraform/* changes) | Plan + Apply |
+| PR to `main` (terraform/* changes) | Plan only (with PR comment) |
+| Manual dispatch | Plan, Apply, or Destroy |
+
+### Manual Runs
+
+Go to Actions → Terraform Azure Infrastructure → Run workflow:
+- **plan**: Preview changes
+- **apply**: Deploy infrastructure
+- **destroy**: Tear down infrastructure
+
+---
+
 ## Configuration Variables
 
 | Variable | Default | Description |
