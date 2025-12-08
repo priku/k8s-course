@@ -51,6 +51,9 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[2.5](https://github.com/priku/k8s-course/tree/2.5)** - ConfigMaps: Add configuration file and environment variable to log-output
 - [x] **[2.6](https://github.com/priku/k8s-course/tree/2.6)** - Externalize Configuration: Remove hard-coded configs from todo-project
 - [x] **[2.7](https://github.com/priku/k8s-course/tree/2.7)** - StatefulSets: Postgres database for ping-pong counter persistence
+- [x] **[2.8](https://github.com/priku/k8s-course/tree/2.8)** - Todo Backend Database: Postgres for todo persistence
+- [x] **[2.9](https://github.com/priku/k8s-course/tree/2.9)** - Daily Todos: Random daily todo from Wikipedia API
+- [x] **[2.10](https://github.com/priku/k8s-course/tree/2.10)** - CronJob: Scheduled Wikipedia todo fetcher
 
 ### In Progress
 - [ ] Azure AI services integration
