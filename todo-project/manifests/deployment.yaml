@@ -19,11 +19,21 @@ spec:
             claimName: todo-project-image-pvc
       containers:
         - name: todo-project
-          image: todo-project:v2.2
+          image: todo-project:v2.6
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            - name: IMAGE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-project-config
+                  key: IMAGE_URL
+            - name: IMAGE_REFRESH_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-project-config
+                  key: IMAGE_REFRESH_INTERVAL
           volumeMounts:
             - name: image-storage
               mountPath: /usr/src/app/files

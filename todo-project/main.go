@@ -14,14 +14,34 @@ const (
 	imageDir      = "/usr/src/app/files"
 	imageName     = "daily-image.jpg"
 	timestampFile = "image-timestamp.txt"
-	imageMaxAge   = 10 * time.Minute // Image refreshes every 10 minutes
+)
+
+var (
+	imageURL    string
+	imageMaxAge time.Duration
 )
 
 func main() {
-	// Get port from environment variable, default to 3000
+	// Get configuration from environment variables
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
+	}
+
+	imageURL = os.Getenv("IMAGE_URL")
+	if imageURL == "" {
+		imageURL = "https://picsum.photos/1200" // default
+	}
+
+	refreshInterval := os.Getenv("IMAGE_REFRESH_INTERVAL")
+	if refreshInterval == "" {
+		refreshInterval = "10m" // default
+	}
+	var err error
+	imageMaxAge, err = time.ParseDuration(refreshInterval)
+	if err != nil {
+		log.Printf("Warning: Invalid IMAGE_REFRESH_INTERVAL '%s', using 10m: %v", refreshInterval, err)
+		imageMaxAge = 10 * time.Minute
 	}
 
 	// Ensure image directory exists
@@ -30,6 +50,8 @@ func main() {
 	}
 
 	fmt.Printf("Server started in port %s\n", port)
+	fmt.Printf("Image URL: %s\n", imageURL)
+	fmt.Printf("Image refresh interval: %s\n", imageMaxAge)
 
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc("/image", handleImage)
@@ -81,9 +103,9 @@ func shouldRefreshImage() bool {
 }
 
 func fetchAndSaveImage() error {
-	log.Println("Fetching new image from Lorem Picsum...")
+	log.Printf("Fetching new image from %s...\n", imageURL)
 
-	resp, err := http.Get("https://picsum.photos/1200")
+	resp, err := http.Get(imageURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch image: %w", err)
 	}
