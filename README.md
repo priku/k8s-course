@@ -29,19 +29,19 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 ### Completed Exercises
 
 #### Part 1
-- [x] **1.1** - Log Output: UUID generation with timestamps
-- [x] **1.2** - Todo Project: Basic HTTP server
-- [x] **1.3** - Log Output: Declarative Kubernetes deployment
-- [x] **1.4** - Todo Project: Declarative Kubernetes deployment
-- [x] **1.5** - Todo Project: HTTP server with HTML response
-- [x] **1.6** - Todo Project: NodePort Service
-- [x] **1.7** - Log Output: HTTP endpoint with Ingress
-- [x] **1.8** - Todo Project: Ingress configuration
-- [x] **1.9** - Ping-pong application with shared Ingress
-- [x] **1.10** - Log Output: Split into two containers
-- [x] **1.11** - Share data between applications with PersistentVolume
-- [x] **1.12** - Todo Project: Cached daily image from Lorem Picsum
-- [x] **1.13** - Todo Project: Todo list with input field, validation, and hardcoded todos
+[x] [**1.1**](https://github.com/priku/k8s-course/tree/1.1) - Log Output: UUID generation with timestamps
+[x] [**1.2**](https://github.com/priku/k8s-course/tree/1.2) - Todo Project: Basic HTTP server
+[x] [**1.3**](https://github.com/priku/k8s-course/tree/1.3) - Log Output: Declarative Kubernetes deployment
+[x] [**1.4**](https://github.com/priku/k8s-course/tree/1.4) - Todo Project: Declarative Kubernetes deployment
+[x] [**1.5**](https://github.com/priku/k8s-course/tree/1.5) - Todo Project: HTTP server with HTML response
+[x] [**1.6**](https://github.com/priku/k8s-course/tree/1.6) - Todo Project: NodePort Service
+[x] [**1.7**](https://github.com/priku/k8s-course/tree/1.7) - Log Output: HTTP endpoint with Ingress
+[x] [**1.8**](https://github.com/priku/k8s-course/tree/1.8) - Todo Project: Ingress configuration
+[x] [**1.9**](https://github.com/priku/k8s-course/tree/1.9) - Ping-pong application with shared Ingress
+[x] [**1.10**](https://github.com/priku/k8s-course/tree/1.10) - Log Output: Split into two containers
+[x] [**1.11**](https://github.com/priku/k8s-course/tree/1.11) - Share data between applications with PersistentVolume
+[x] [**1.12**](https://github.com/priku/k8s-course/tree/1.12) - Todo Project: Cached daily image from Lorem Picsum
+[x] [**1.13**](https://github.com/priku/k8s-course/tree/1.13) - Todo Project: Todo list with input field, validation, and hardcoded todos
 
 #### Part 2
 - [x] **[2.1](https://github.com/priku/k8s-course/tree/2.1)** - Connecting pods: HTTP communication between log-output and ping-pong
