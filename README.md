@@ -58,7 +58,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[2.10](https://github.com/priku/k8s-course/tree/2.10)** - CronJob: Scheduled Wikipedia todo fetcher
 
 #### Part 3: Cloud Deployment (Azure AKS)
-- [ ] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer (Infrastructure ready, deployment pending)
+- [x] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer - http://9.223.84.58/pingpong
 
 ---
 
