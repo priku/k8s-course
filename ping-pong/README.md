@@ -8,6 +8,7 @@ This application fulfills the requirements for:
 - **Exercise 1.9:** Ping-pong application with shared Ingress
 - **Exercise 2.1:** HTTP communication between pods (provides `/count` endpoint)
 - **Exercise 2.7:** StatefulSet with PostgreSQL for counter persistence
+- **Exercise 3.1:** Deploy to Azure AKS with LoadBalancer service
 
 ## Features
 
@@ -129,72 +130,52 @@ kubectl delete -f manifests/statefulset.yaml
 
 #### Build and Push to ACR
 ```bash
-# Get ACR name from Terraform output
-ACR_NAME=$(cd ../terraform/bootstrap && terraform output -raw acr_name)
+# Get ACR name from Terraform output (or use: dwkacry73db3cs)
+ACR_NAME=$(cd ../terraform && terraform output -raw acr_name)
 
 # Login to ACR
 az acr login --name $ACR_NAME
 
-# Build and tag image
-docker build -t ping-pong:v2.7 .
-docker tag ping-pong:v2.7 $ACR_NAME.azurecr.io/ping-pong:v2.7
+# Build and tag image (v3.1 for Exercise 3.1)
+docker build -t ping-pong:v3.1 .
+docker tag ping-pong:v3.1 $ACR_NAME.azurecr.io/ping-pong:v3.1
 
 # Push to ACR
-docker push $ACR_NAME.azurecr.io/ping-pong:v2.7
+docker push $ACR_NAME.azurecr.io/ping-pong:v3.1
 ```
 
-#### Update manifests for AKS
-Update the image reference in `manifests/deployment.yaml`:
-```yaml
-spec:
-  containers:
-    - name: ping-pong
-      image: <acr-name>.azurecr.io/ping-pong:v2.7
-```
+#### Deploy to AKS (Exercise 3.1)
+AKS-specific manifests are located in `manifests/aks/` directory:
 
-#### Deploy to AKS
 ```bash
-# Deploy PostgreSQL StatefulSet
-kubectl apply -f manifests/statefulset.yaml
+# Create namespace
+kubectl apply -f manifests/aks/namespace.yaml
 
-# Wait for PostgreSQL
-kubectl wait --for=condition=ready pod -l app=postgres-ss -n exercises --timeout=300s
+# Deploy PostgreSQL StatefulSet (with Azure storage)
+kubectl apply -f manifests/aks/statefulset.yaml
 
-# Deploy application
-kubectl apply -f manifests/deployment.yaml
-kubectl apply -f manifests/service.yaml
-```
+# Wait for PostgreSQL to be ready
+kubectl wait --for=condition=ready pod -l app=postgres -n exercises --timeout=300s
 
-#### Expose with LoadBalancer (Exercise 3.1)
-For Exercise 3.1, use a LoadBalancer service instead of Ingress:
+# Deploy ping-pong application
+kubectl apply -f manifests/aks/deployment.yaml
 
-Create `manifests/service-loadbalancer.yaml`:
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  namespace: exercises
-  name: ping-pong-lb
-spec:
-  type: LoadBalancer
-  selector:
-    app: ping-pong
-  ports:
-    - port: 80
-      protocol: TCP
-      targetPort: 3000
-```
-
-Deploy and get external IP:
-```bash
-kubectl apply -f manifests/service-loadbalancer.yaml
+# Deploy LoadBalancer service
+kubectl apply -f manifests/aks/service-loadbalancer.yaml
 
 # Wait for external IP (may take 2-3 minutes)
-kubectl get svc -n exercises --watch
-
-# Test once you have the external IP
-curl http://<EXTERNAL-IP>/pingpong
+kubectl get svc ping-pong-lb -n exercises --watch
 ```
+
+**Live Demo (Exercise 3.1):**
+- External URL: http://9.223.84.58/pingpong
+- Test: `curl http://9.223.84.58/pingpong`
+
+**Key differences for AKS:**
+- Storage class: `default` (Azure Disk) instead of `local-path`
+- Volume mount uses `subPath: pgdata` to avoid Azure volume mount issues
+- Image from ACR: `dwkacry73db3cs.azurecr.io/ping-pong:v3.1`
+- LoadBalancer service for external access (Azure creates public IP automatically)
 
 #### Check AKS deployment
 ```bash
@@ -210,9 +191,10 @@ kubectl logs -f deployment/ping-pong-dep -n exercises
 
 #### Delete AKS deployment
 ```bash
-kubectl delete -f manifests/deployment.yaml
-kubectl delete -f manifests/service-loadbalancer.yaml
-kubectl delete -f manifests/statefulset.yaml
+kubectl delete -f manifests/aks/deployment.yaml
+kubectl delete -f manifests/aks/service-loadbalancer.yaml
+kubectl delete -f manifests/aks/statefulset.yaml
+kubectl delete -f manifests/aks/namespace.yaml
 ```
 
 ## Configuration
@@ -258,10 +240,14 @@ Returns the current counter value as JSON.
 - `main.go` - Main application code with database integration
 - `go.mod` - Go module definition
 - `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment in "exercises" namespace
-- `manifests/service.yaml` - ClusterIP service
-- `manifests/ingress.yaml` - Ingress configuration for external access
-- `manifests/statefulset.yaml` - PostgreSQL StatefulSet with persistent storage
+- `manifests/deployment.yaml` - Kubernetes deployment for k3d (local)
+- `manifests/service.yaml` - ClusterIP service for k3d
+- `manifests/ingress.yaml` - Ingress configuration for k3d
+- `manifests/statefulset.yaml` - PostgreSQL StatefulSet for k3d (local-path storage)
+- `manifests/aks/namespace.yaml` - Namespace for AKS deployment
+- `manifests/aks/deployment.yaml` - Kubernetes deployment for AKS (with ACR image)
+- `manifests/aks/service-loadbalancer.yaml` - LoadBalancer service for AKS (Exercise 3.1)
+- `manifests/aks/statefulset.yaml` - PostgreSQL StatefulSet for AKS (Azure Disk storage)
 
 ## Technologies
 

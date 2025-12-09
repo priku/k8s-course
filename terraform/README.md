@@ -223,7 +223,7 @@ Go to Actions → Terraform Azure Infrastructure → Run workflow:
 | `location` | `swedencentral` | Azure region |
 | `cluster_name` | `dwk-aks-cluster` | Name of the AKS cluster |
 | `node_count` | `2` | Number of nodes |
-| `vm_size` | `Standard_B2s` | VM size for nodes |
+| `vm_size` | `Standard_B2s_v2` | VM size for nodes (v2 available in Sweden Central) |
 
 ---
 
