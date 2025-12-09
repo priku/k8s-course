@@ -93,3 +93,12 @@ resource "azurerm_role_assignment" "aks_acr" {
   scope                            = module.acr.resource_id
   skip_service_principal_aad_check = true
 }
+
+# ==============================================================================
+# Role Assignment: Grant current user cluster admin access
+# ==============================================================================
+resource "azurerm_role_assignment" "aks_user_admin" {
+  principal_id         = data.azurerm_client_config.current.object_id
+  role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+  scope                = module.aks.resource_id
+}
