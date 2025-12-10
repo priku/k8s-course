@@ -42,3 +42,9 @@ variable "tags" {
     Course      = "DevOps-with-Kubernetes"
   }
 }
+
+variable "admin_principal_ids" {
+  description = "List of principal IDs (users or service principals) to grant AKS cluster admin access"
+  type        = list(string)
+  default     = []
+}

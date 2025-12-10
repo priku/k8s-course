@@ -95,10 +95,12 @@ resource "azurerm_role_assignment" "aks_acr" {
 }
 
 # ==============================================================================
-# Role Assignment: Grant current user cluster admin access
+# Role Assignment: Grant cluster admin access to specified principals
 # ==============================================================================
-resource "azurerm_role_assignment" "aks_user_admin" {
-  principal_id         = data.azurerm_client_config.current.object_id
+resource "azurerm_role_assignment" "aks_admin" {
+  for_each = toset(var.admin_principal_ids)
+
+  principal_id         = each.value
   role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
   scope                = module.aks.resource_id
 }
