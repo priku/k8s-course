@@ -50,14 +50,18 @@ jobs:
         id: image-tags
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "TODO_PROJECT_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-project:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "TODO_BACKEND_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-backend:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          # Sanitize branch name for Docker tag (replace / with -)
+          SAFE_BRANCH=$(echo "${{ env.BRANCH }}" | sed 's/\//-/g')
+          echo "TODO_PROJECT_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-project:${SAFE_BRANCH}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "TODO_BACKEND_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-backend:${SAFE_BRANCH}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
-          # Set namespace: main branch uses 'project', other branches use branch name
+          # Set namespace: main branch uses 'project', other branches use branch name (sanitized)
           if [ "${{ env.BRANCH }}" == "main" ]; then
             echo "NAMESPACE=project" >> $GITHUB_OUTPUT
           else
-            echo "NAMESPACE=${{ env.BRANCH }}" >> $GITHUB_OUTPUT
+            # Sanitize branch name for namespace (replace / with -, lowercase)
+            SAFE_NAMESPACE=$(echo "${{ env.BRANCH }}" | sed 's/\//-/g' | tr '[:upper:]' '[:lower:]')
+            echo "NAMESPACE=${SAFE_NAMESPACE}" >> $GITHUB_OUTPUT
           fi
 
       - name: Build Todo Project Image
