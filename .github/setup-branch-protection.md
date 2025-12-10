@@ -25,8 +25,9 @@ main
 #### ✅ Require status checks to pass before merging
 - ☑️ Require branches to be up to date before merging
 - **Status checks that are required**:
-  - `Terraform Plan`
-  - Add more as you create them
+  - None configured (checks will run based on file changes)
+  - Terraform Plan runs automatically when terraform/ files change
+  - Add required checks as needed for your workflow
 
 #### ✅ Require conversation resolution before merging
 - Ensures all PR comments are addressed
