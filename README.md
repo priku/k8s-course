@@ -1,9 +1,20 @@
 # AI-Enhanced Todo Application
 ## DevOps with Kubernetes + Azure AI Services (AI-102)
 
+[![Terraform](https://github.com/priku/k8s-course/actions/workflows/terraform.yml/badge.svg)](https://github.com/priku/k8s-course/actions/workflows/terraform.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A production-grade, cloud-native todo application demonstrating Kubernetes orchestration and Azure AI capabilities. This project combines learning from:
 - **DevOps with Kubernetes** course (University of Helsinki, 5 ECTS)
 - **AI-102: Azure AI Engineer** certification path
+
+**🔧 Built with Professional DevOps Practices:**
+- ✅ GitOps workflow with Pull Requests
+- ✅ CI/CD with GitHub Actions
+- ✅ Infrastructure as Code (Terraform)
+- ✅ Remote state management (Azure Storage)
+- ✅ Branch protection and code review
+- ✅ Automated testing and validation
 
 ---
 
