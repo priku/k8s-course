@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: project
+
+resources:
+  - todo-project/manifests/persistentvolumeclaim.yaml
+  - todo-project/manifests/configmap.yaml
+  - todo-project/manifests/service.yaml
+  - todo-project/manifests/deployment.yaml
+  - todo-backend/manifests/secret.yaml
+  - todo-backend/manifests/statefulset.yaml
+  - todo-backend/manifests/service.yaml
+  - todo-backend/manifests/deployment.yaml
+
+images:
+  - name: PROJECT/TODO-PROJECT
+    newName: dwkacry73db3cs.azurecr.io/todo-project:v3.5
+  - name: PROJECT/TODO-BACKEND
+    newName: dwkacry73db3cs.azurecr.io/todo-backend:v3.5
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: managed
+    target:
+      kind: PersistentVolumeClaim
+      name: todo-project-image-pvc
+  - patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: managed
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/0/subPath
+        value: pgdata
+    target:
+      kind: StatefulSet
+      name: postgres-ss
