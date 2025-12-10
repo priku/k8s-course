@@ -59,8 +59,8 @@ jobs:
           if [ "${{ env.BRANCH }}" == "main" ]; then
             echo "NAMESPACE=project" >> $GITHUB_OUTPUT
           else
-            # Sanitize branch name for namespace (replace / with -, lowercase)
-            SAFE_NAMESPACE=$(echo "${{ env.BRANCH }}" | sed 's/\//-/g' | tr '[:upper:]' '[:lower:]')
+            # Sanitize branch name for namespace (replace / and . with -, lowercase)
+            SAFE_NAMESPACE=$(echo "${{ env.BRANCH }}" | sed 's/[\/\.]/-/g' | tr '[:upper:]' '[:lower:]')
             echo "NAMESPACE=${SAFE_NAMESPACE}" >> $GITHUB_OUTPUT
           fi
 
