@@ -1,0 +1,61 @@
+name: 'Cleanup Branch Environment'
+
+on:
+  delete:
+    branches:
+      - '**'
+
+env:
+  AKS_CLUSTER: dwk-aks-cluster
+  AKS_RESOURCE_GROUP: dwk-aks-rg
+
+jobs:
+  cleanup:
+    name: 'Delete Branch Namespace'
+    runs-on: ubuntu-latest
+    # Only run if a branch (not a tag) was deleted
+    if: github.event.ref_type == 'branch'
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Kubelogin
+        run: |
+          az aks install-cli
+          sudo mv /usr/local/bin/kubelogin /usr/bin/kubelogin || true
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER }} \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Delete Namespace
+        run: |
+          # Get the deleted branch name from the event
+          BRANCH_NAME="${{ github.event.ref }}"
+          echo "Deleted branch: $BRANCH_NAME"
+
+          # Skip cleanup for main branch
+          if [ "$BRANCH_NAME" == "main" ]; then
+            echo "Skipping cleanup for main branch (uses 'project' namespace)"
+            exit 0
+          fi
+
+          # Sanitize branch name for namespace (replace / and . with -, lowercase)
+          NAMESPACE=$(echo "$BRANCH_NAME" | sed 's/[\/\.]/-/g' | tr '[:upper:]' '[:lower:]')
+          echo "Namespace to delete: $NAMESPACE"
+
+          # Check if namespace exists
+          if kubectl get namespace "$NAMESPACE" &> /dev/null; then
+            echo "Deleting namespace: $NAMESPACE"
+            kubectl delete namespace "$NAMESPACE"
+            echo "Namespace deleted successfully"
+          else
+            echo "Namespace $NAMESPACE does not exist, nothing to clean up"
+          fi
