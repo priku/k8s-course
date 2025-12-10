@@ -2,7 +2,7 @@ name: 'Deploy Todo Project to AKS'
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - 'todo-project/**'
       - 'todo-backend/**'
