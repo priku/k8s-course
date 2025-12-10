@@ -1,0 +1,82 @@
+name: 'Deploy Todo Project to AKS'
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'todo-project/**'
+      - 'todo-backend/**'
+      - 'kustomization.yaml'
+      - '.github/workflows/deploy-project.yml'
+  workflow_dispatch:
+
+env:
+  ACR_NAME: dwkacry73db3cs
+  AKS_CLUSTER: dwk-aks-cluster
+  AKS_RESOURCE_GROUP: dwk-aks-rg
+  NAMESPACE: project
+  BRANCH: ${{ github.ref_name }}
+
+jobs:
+  build-and-deploy:
+    name: 'Build and Deploy Todo Project'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER }} \
+            --overwrite-existing
+
+      - name: Set Image Tags
+        id: image-tags
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "TODO_PROJECT_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-project:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "TODO_BACKEND_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-backend:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build Todo Project Image
+        run: |
+          cd todo-project
+          docker build -t ${{ steps.image-tags.outputs.TODO_PROJECT_TAG }} .
+
+      - name: Build Todo Backend Image
+        run: |
+          cd todo-backend
+          docker build -t ${{ steps.image-tags.outputs.TODO_BACKEND_TAG }} .
+
+      - name: Push Images to ACR
+        run: |
+          docker push ${{ steps.image-tags.outputs.TODO_PROJECT_TAG }}
+          docker push ${{ steps.image-tags.outputs.TODO_BACKEND_TAG }}
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Deploy to AKS
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} || true
+          kustomize edit set image \
+            PROJECT/TODO-PROJECT=${{ steps.image-tags.outputs.TODO_PROJECT_TAG }} \
+            PROJECT/TODO-BACKEND=${{ steps.image-tags.outputs.TODO_BACKEND_TAG }}
+          kustomize build . | kubectl apply -f -
+
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/todo-project-dep -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/todo-backend-dep -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl rollout status statefulset/postgres-ss -n ${{ env.NAMESPACE }} --timeout=5m
+          kubectl get pods -n ${{ env.NAMESPACE }}

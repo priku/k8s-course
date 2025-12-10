@@ -5,6 +5,8 @@ metadata:
   name: todo-project-dep
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: todo-project
