@@ -76,6 +76,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[3.5](https://github.com/priku/k8s-course/tree/3.5)** - Kustomize configuration: Deploy todo-project to AKS with Kustomize
 - [x] **[3.6](https://github.com/priku/k8s-course/tree/3.6)** - CI/CD for todo-project: GitHub Actions deployment pipeline to AKS
 - [x] **[3.7](https://github.com/priku/k8s-course/tree/3.7)** - Branch-based environments: Each branch deploys to its own namespace
+- [x] **[3.8](https://github.com/priku/k8s-course/tree/3.8)** - Environment cleanup: Automatic namespace deletion on branch removal
 
 ---
 
