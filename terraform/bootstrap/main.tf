@@ -98,7 +98,7 @@ output "container_name" {
 }
 
 output "backend_config" {
-  value = <<-EOT
+  value       = <<-EOT
     # Add this to terraform/providers.tf after 'required_providers' block:
     backend "azurerm" {
       resource_group_name  = "${azurerm_resource_group.tfstate.name}"

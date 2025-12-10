@@ -28,7 +28,7 @@ module "acr" {
   # Basic SKU is sufficient for learning/demo, with zone redundancy disabled
   sku                      = "Basic"
   zone_redundancy_enabled  = false
-  retention_policy_in_days = null  # Retention policy only available with Premium SKU
+  retention_policy_in_days = null # Retention policy only available with Premium SKU
 
   # Enable telemetry for AVM
   enable_telemetry = true

@@ -31,7 +31,7 @@ variable "node_count" {
 variable "vm_size" {
   description = "VM size for the nodes"
   type        = string
-  default     = "Standard_B2s_v2"  # Cost-effective for learning (v2 available in swedencentral)
+  default     = "Standard_B2s_v2" # Cost-effective for learning (v2 available in swedencentral)
 }
 
 variable "tags" {
