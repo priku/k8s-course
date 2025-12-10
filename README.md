@@ -74,6 +74,7 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 - [x] **[3.3](https://github.com/priku/k8s-course/tree/3.3)** - To the Gateway: Replace Ingress with Gateway API (NGINX Gateway Fabric) - http://4.165.59.114/
 - [x] **[3.4](https://github.com/priku/k8s-course/tree/3.4)** - Rewritten routing: Path rewriting with Gateway API URLRewrite - http://4.165.59.114/pingpong
 - [x] **[3.5](https://github.com/priku/k8s-course/tree/3.5)** - Kustomize configuration: Deploy todo-project to AKS with Kustomize
+- [x] **[3.6](https://github.com/priku/k8s-course/tree/3.6)** - CI/CD for todo-project: GitHub Actions deployment pipeline to AKS
 
 ---
 
