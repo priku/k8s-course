@@ -8,10 +8,16 @@ resources:
   - todo-project/manifests/configmap.yaml
   - todo-project/manifests/service.yaml
   - todo-project/manifests/deployment.yaml
-  - todo-backend/manifests/secret.yaml
   - todo-backend/manifests/statefulset.yaml
   - todo-backend/manifests/service.yaml
   - todo-backend/manifests/deployment.yaml
+
+secretGenerator:
+  - name: postgres-secret
+    literals:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=example
+      - POSTGRES_URL=postgres://postgres:example@postgres-svc:5432/todos?sslmode=disable
 
 images:
   - name: PROJECT/TODO-PROJECT
