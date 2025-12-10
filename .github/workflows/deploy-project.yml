@@ -2,7 +2,7 @@ name: 'Deploy Todo Project to AKS'
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - 'todo-project/**'
       - 'todo-backend/**'
@@ -14,7 +14,6 @@ env:
   ACR_NAME: dwkacry73db3cs
   AKS_CLUSTER: dwk-aks-cluster
   AKS_RESOURCE_GROUP: dwk-aks-rg
-  NAMESPACE: project
   BRANCH: ${{ github.ref_name }}
 
 jobs:
@@ -47,12 +46,23 @@ jobs:
             --overwrite-existing
           kubelogin convert-kubeconfig -l azurecli
 
-      - name: Set Image Tags
+      - name: Set Image Tags and Namespace
         id: image-tags
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "TODO_PROJECT_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-project:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "TODO_BACKEND_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-backend:${{ env.BRANCH }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          # Sanitize branch name for Docker tag (replace / with -)
+          SAFE_BRANCH=$(echo "${{ env.BRANCH }}" | sed 's/\//-/g')
+          echo "TODO_PROJECT_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-project:${SAFE_BRANCH}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "TODO_BACKEND_TAG=${{ env.ACR_NAME }}.azurecr.io/todo-backend:${SAFE_BRANCH}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+          # Set namespace: main branch uses 'project', other branches use branch name (sanitized)
+          if [ "${{ env.BRANCH }}" == "main" ]; then
+            echo "NAMESPACE=project" >> $GITHUB_OUTPUT
+          else
+            # Sanitize branch name for namespace (replace / and . with -, lowercase)
+            SAFE_NAMESPACE=$(echo "${{ env.BRANCH }}" | sed 's/[\/\.]/-/g' | tr '[:upper:]' '[:lower:]')
+            echo "NAMESPACE=${SAFE_NAMESPACE}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build Todo Project Image
         run: |
@@ -74,7 +84,8 @@ jobs:
 
       - name: Deploy to AKS
         run: |
-          kubectl create namespace ${{ env.NAMESPACE }} || true
+          kubectl create namespace ${{ steps.image-tags.outputs.NAMESPACE }} || true
+          kustomize edit set namespace ${{ steps.image-tags.outputs.NAMESPACE }}
           kustomize edit set image \
             PROJECT/TODO-PROJECT=${{ steps.image-tags.outputs.TODO_PROJECT_TAG }} \
             PROJECT/TODO-BACKEND=${{ steps.image-tags.outputs.TODO_BACKEND_TAG }}
@@ -82,7 +93,7 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          kubectl rollout status deployment/todo-project-dep -n ${{ env.NAMESPACE }} --timeout=5m
-          kubectl rollout status deployment/todo-backend-dep -n ${{ env.NAMESPACE }} --timeout=5m
-          kubectl rollout status statefulset/postgres-ss -n ${{ env.NAMESPACE }} --timeout=5m
-          kubectl get pods -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/todo-project-dep -n ${{ steps.image-tags.outputs.NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/todo-backend-dep -n ${{ steps.image-tags.outputs.NAMESPACE }} --timeout=5m
+          kubectl rollout status statefulset/postgres-ss -n ${{ steps.image-tags.outputs.NAMESPACE }} --timeout=5m
+          kubectl get pods -n ${{ steps.image-tags.outputs.NAMESPACE }}
