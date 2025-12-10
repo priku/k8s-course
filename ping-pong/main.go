@@ -43,8 +43,7 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/pingpong", handlePingPong)
+	http.HandleFunc("/", handlePingPong)
 	http.HandleFunc("/count", handleCount)
 
 	fmt.Printf("Ping-pong server started on port %s\n", port)
@@ -101,16 +100,6 @@ func handlePingPong(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintf(w, "pong %d", currentCount)
-}
-
-func handleRoot(w http.ResponseWriter, r *http.Request) {
-	// Health check endpoint required by Ingress
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprint(w, "OK")
 }
 
 func handleCount(w http.ResponseWriter, r *http.Request) {
