@@ -34,12 +34,18 @@ jobs:
       - name: ACR Login
         run: az acr login --name ${{ env.ACR_NAME }}
 
+      - name: Install Kubelogin
+        run: |
+          az aks install-cli
+          sudo mv /usr/local/bin/kubelogin /usr/bin/kubelogin || true
+
       - name: Get AKS Credentials
         run: |
           az aks get-credentials \
             --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
             --name ${{ env.AKS_CLUSTER }} \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Set Image Tags
         id: image-tags
