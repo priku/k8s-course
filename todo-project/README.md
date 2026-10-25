@@ -88,7 +88,7 @@ The Kubernetes deployment is configured with `PORT=3000` in the deployment manif
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
 - **Orchestration:** Kubernetes
 

@@ -284,7 +284,7 @@ CREATE TABLE IF NOT EXISTS todos (
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Database:** PostgreSQL 13.0
 - **Container:** Docker (multi-stage build with Alpine Linux)
 - **Orchestration:** Kubernetes
