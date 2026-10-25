@@ -1,25 +1,25 @@
 variable "resource_group_name" {
-  description = "Name of the resource group"
+  description = "Existing resource group for the course resources (created with the budget, see README.md)"
   type        = string
-  default     = "dwk-aks-rg"
+  default     = "rg-dwk-aks-sc"
 }
 
-variable "location" {
-  description = "Azure region for resources"
+variable "node_resource_group_name" {
+  description = "Resource group that AKS creates for the nodes; the course budget covers it by name"
   type        = string
-  default     = "swedencentral"
+  default     = "rg-dwk-aks-nodes-sc"
 }
 
 variable "cluster_name" {
   description = "Name of the AKS cluster"
   type        = string
-  default     = "dwk-aks-cluster"
+  default     = "aks-dwk-sc"
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version"
+  description = "Kubernetes minor version; AKS picks the latest patch"
   type        = string
-  default     = "1.30"
+  default     = "1.37"
 }
 
 variable "node_count" {
@@ -29,16 +29,29 @@ variable "node_count" {
 }
 
 variable "vm_size" {
-  description = "VM size for the nodes"
+  description = "Node size: the latest generation (v7) with 2 vCPU and 8 GiB, enough for the Istio gateway and two Postgres databases"
   type        = string
-  default     = "Standard_B2s_v2"  # Cost-effective for learning (v2 available in swedencentral)
+  default     = "Standard_D2as_v7"
+}
+
+variable "acr_name" {
+  description = "Globally unique name of the container registry; the AKS manifests refer to <name>.azurecr.io"
+  type        = string
+  default     = "acrdwkakssc"
+}
+
+variable "stop_time_zone" {
+  description = "Windows time zone of the nightly stop schedule"
+  type        = string
+  default     = "FLE Standard Time" # Helsinki, follows daylight saving time
 }
 
 variable "tags" {
-  description = "Tags for resources"
+  description = "Tags for all resources"
   type        = map(string)
   default = {
-    Environment = "Development"
-    Course      = "DevOps-with-Kubernetes"
+    project = "dwk-k8s-course"
+    purpose = "course"
+    owner   = "priku"
   }
 }

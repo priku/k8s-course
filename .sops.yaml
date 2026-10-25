@@ -1,0 +1,6 @@
+# SOPS encrypts the data of every *.enc.yaml Secret for this age public key.
+# The private key is not in the repository (see ping-pong/README.md).
+creation_rules:
+  - path_regex: \.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1q8ku7k4h9775dz8aesy4y700un3hptpt3pggnts84nduwfh5vszqh5yzws

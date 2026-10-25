@@ -4,16 +4,28 @@ metadata:
   namespace: project
   name: wiki-todo-generator
 spec:
-  schedule: "0 * * * *"  # Run every hour at minute 0
+  schedule: "0 * * * *" # every hour at minute 0
+  concurrencyPolicy: Forbid # never two runs at the same time
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      backoffLimit: 3 # retry a failed run up to three times
       template:
         spec:
+          restartPolicy: Never
           containers:
             - name: wiki-todo-generator
-              image: wiki-todo-generator:v1.0
+              image: wiki-todo-generator:v2.9
               imagePullPolicy: IfNotPresent
               env:
-                - name: BACKEND_URL
-                  value: "http://todo-backend-svc:2345/todos"
-          restartPolicy: OnFailure
+                - name: RANDOM_ARTICLE_URL
+                  value: https://en.wikipedia.org/wiki/Special:Random
+                - name: TODOS_URL
+                  value: http://todo-backend-svc:2345/todos
+                # Same limit as todo-backend, so the job never sends a todo it would refuse
+                - name: TODO_MAX_LENGTH
+                  valueFrom:
+                    configMapKeyRef:
+                      name: todo-backend-config
+                      key: TODO_MAX_LENGTH

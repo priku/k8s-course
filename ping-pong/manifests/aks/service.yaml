@@ -1,8 +1,9 @@
+# A LoadBalancer Service makes AKS add a rule and a public IP to the cluster's Azure Load Balancer
 apiVersion: v1
 kind: Service
 metadata:
   namespace: exercises
-  name: ping-pong-lb
+  name: ping-pong-svc
 spec:
   type: LoadBalancer
   selector:
