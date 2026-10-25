@@ -23,20 +23,26 @@ func main() {
 	fmt.Printf("Random string: %s\n", randomString)
 	fmt.Printf("Timezone: %s\n", loc.String())
 
-	// Write to file every 5 seconds
+	// Write once right away so the reader has content from the start, then every 5 seconds
+	writeLine(randomString, loc)
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		timestamp := time.Now().In(loc).Format(time.RFC3339)
-		logLine := fmt.Sprintf("%s: %s\n", timestamp, randomString)
+		writeLine(randomString, loc)
+	}
+}
 
-		// Write to shared file
-		err := os.WriteFile("/usr/src/app/files/output.txt", []byte(logLine), 0644)
-		if err != nil {
-			fmt.Printf("Error writing to file: %v\n", err)
-		} else {
-			fmt.Print(logLine)
-		}
+func writeLine(randomString string, loc *time.Location) {
+	timestamp := time.Now().In(loc).Format(time.RFC3339)
+	logLine := fmt.Sprintf("%s: %s\n", timestamp, randomString)
+
+	// Write to shared file
+	err := os.WriteFile("/usr/src/app/files/output.txt", []byte(logLine), 0644)
+	if err != nil {
+		fmt.Printf("Error writing to file: %v\n", err)
+	} else {
+		fmt.Print(logLine)
 	}
 }
