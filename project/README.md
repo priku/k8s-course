@@ -103,6 +103,10 @@ Production images pile up too, three for every deployment of `main`. The ACR tas
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
+## Database backups (exercise 3.10)
+
+Production (`main`, namespace `project`) dumps its database every day with `pg_dump` and uploads it to Azure Blob Storage, authenticated with workload identity: no keys or Secrets for Azure. The CronJob and its ServiceAccount are the Kustomize component `components/db-backup`, which the deployment workflow adds for `main` only, so branch environments do not back up. See [`../db-backup`](../db-backup) for how it works and how to restore.
+
 ## DBaaS vs DIY (exercise 3.9)
 
 The project's Postgres runs in the cluster as a StatefulSet with an Azure Disk ("do it yourself"). The managed alternative in Azure is **Azure Database for PostgreSQL – Flexible Server** ("database as a service"; Cloud SQL in the course material). Prices are Sweden Central list prices in October 2026.
@@ -126,3 +130,4 @@ The project's Postgres runs in the cluster as a StatefulSet with an Azure Disk (
 - `k3d/` - the Ingresses for `/` and `/api` and the Traefik Middleware `strip-api`
 - `aks/kustomization.yaml` - the images from ACR
 - `aks/gateway.yaml` - Gateway and HTTPRoute for `/` and `/api`
+- `components/db-backup/` - the daily backup CronJob and its workload identity ServiceAccount, production only

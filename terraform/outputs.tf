@@ -22,3 +22,8 @@ output "github_actions_client_id" {
 output "tenant_id" {
   value = data.azurerm_client_config.current.tenant_id
 }
+
+# The CronJob's ServiceAccount is annotated with this client ID (project/components/db-backup)
+output "db_backup_client_id" {
+  value = azurerm_user_assigned_identity.db_backup.client_id
+}

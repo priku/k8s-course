@@ -13,8 +13,11 @@ on:
       - 'todo-project/**'
       - 'todo-backend/**'
       - 'wiki-todo-generator/**'
+      - 'db-backup/**'
       - 'project/**'
       - '.github/workflows/project.yaml'
+      # Documentation changes do not need a deployment
+      - '!**/*.md'
 
 permissions:
   contents: read
@@ -78,7 +81,7 @@ jobs:
       - name: Build and publish the images
         run: |
           az acr login --name "${REGISTRY%%.*}"
-          for app in todo-project todo-backend wiki-todo-generator; do
+          for app in todo-project todo-backend wiki-todo-generator db-backup; do
             docker build --tag "$REGISTRY/$app:$IMAGE_TAG" "$app"
             docker push "$REGISTRY/$app:$IMAGE_TAG"
           done
@@ -115,7 +118,11 @@ jobs:
             | yq '.metadata.namespace = strenv(NAMESPACE)' | kubectl apply -f -
           cd project/aks
           kustomize edit set namespace "$NAMESPACE"
-          for app in todo-project todo-backend wiki-todo-generator; do
+          # Only production backs up its database (exercise 3.10); branch environments do not
+          if [ "$NAMESPACE" = "project" ]; then
+            kustomize edit add component ../components/db-backup
+          fi
+          for app in todo-project todo-backend wiki-todo-generator db-backup; do
             kustomize edit set image "$app=$REGISTRY/$app:$IMAGE_TAG"
           done
           kustomize build . | kubectl apply -f -

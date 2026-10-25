@@ -28,6 +28,9 @@ terraform {
 provider "azurerm" {
   features {}
 
+  # The backup storage account allows Entra ID only (no shared keys), so use it for data plane calls too
+  storage_use_azuread = true
+
   # azurerm 5 registers no resource providers by default; these are already registered in the subscription
   resource_provider_registrations = "none"
 }
