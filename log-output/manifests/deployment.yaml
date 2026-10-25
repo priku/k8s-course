@@ -12,10 +12,24 @@ spec:
       labels:
         app: log-output
     spec:
+      volumes:
+        - name: shared-logs
+          emptyDir: {}
       containers:
-        - name: log-output
-          image: log-output:v2.1
+        - name: log-writer
+          image: log-writer:v1.11
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: shared-logs
+              mountPath: /usr/src/app/files
+        - name: log-reader
+          image: log-reader:v2.1
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+            - name: PING_PONG_URL
+              value: "http://ping-pong-svc:2345/count"
+          volumeMounts:
+            - name: shared-logs
+              mountPath: /usr/src/app/files

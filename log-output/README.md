@@ -1,82 +1,80 @@
 # Log Output Application
 
-A simple Go application that generates a random UUID on startup and outputs it with a timestamp every 5 seconds.
+Two containers in one pod that share an `emptyDir` volume:
 
-## Exercise 1.1 & 1.3
+- **writer** generates a random UUID on startup and every 5 seconds writes `<timestamp>: <uuid>` to `/usr/src/app/files/output.txt`
+- **reader** serves that line over HTTP together with the request count it fetches from the [ping-pong application](../ping-pong) with `GET http://ping-pong-svc:2345/count`:
 
-This application fulfills the requirements for:
-- **Exercise 1.1:** Creating and deploying an application that outputs a random string with timestamp
-- **Exercise 1.3:** Moving to declarative approach with Kubernetes manifests
+```
+2026-10-25T18:01:02+02:00: f35b159b-1c83-40b1-ada3-21c3029c87c2.
+Ping / Pongs: 3
+```
 
-## Features
+## Exercises
 
-- Generates a random UUID on application startup
-- Outputs the UUID with RFC3339 timestamp every 5 seconds
-- Containerized with multi-stage Docker build for small image size
+- **1.1:** Random string generated on startup, printed with a timestamp every 5 seconds
+- **1.3:** Declarative deployment (`manifests/deployment.yaml`)
+- **1.7:** HTTP endpoint for the current status and an Ingress for browser access
+- **1.9:** Shares an Ingress with the [ping-pong application](../ping-pong)
+- **1.10:** Split into two containers in a single pod
+- **1.11:** Shares a PersistentVolume with ping-pong and shows its request count
+- **2.1:** Gets the ping-pong count over HTTP instead of a shared volume
 
-## Running Locally
+## Deploying to Kubernetes (k3d)
 
-### Using Docker
+The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
 
-Build the image:
 ```bash
-docker build -t log-output:v1.0 .
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
 ```
 
-Run the container:
+If the todo-project Ingress (`todo-project-ingress`) is in the cluster, delete it first so the two don't compete for `/`:
+
 ```bash
-docker run log-output:v1.0
+kubectl delete ingress todo-project-ingress
 ```
 
-Expected output:
-```
-Log output application started
-2025-11-28T22:13:21.991206053Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-2025-11-28T22:13:26.991325185Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-...
-```
+Build, import and deploy together with ping-pong:
 
-## Deploying to Kubernetes
-
-### Prerequisites
-- Kubernetes cluster (k3d, minikube, or similar)
-- kubectl configured
-
-### Import image to k3d (if using k3d)
 ```bash
-k3d image import log-output:v1.0
+docker build -t log-writer:v1.11 writer
+docker build -t log-reader:v2.1 reader
+k3d image import log-writer:v1.11 log-reader:v2.1
+kubectl apply -f manifests/
+kubectl apply -f ../ping-pong/manifests/   # ping-pong + shared Ingress app-ingress
+# Open http://localhost:8081, call http://localhost:8081/pingpong and reload
 ```
 
-### Deploy
+With more than one container in the pod, pick the container with `-c`:
+
 ```bash
-kubectl apply -f manifests/deployment.yaml
+kubectl logs -f deployment/log-output-dep -c log-writer
+kubectl logs -f deployment/log-output-dep -c log-reader
 ```
 
-### Check deployment
+Traffic flow: `localhost:8081` → Traefik Ingress `app-ingress` (`/`) → ClusterIP Service `log-output-svc:2345` → reader container port `3000` → reads `output.txt` from the `emptyDir` and calls `ping-pong-svc:2345/count` through cluster DNS.
+
+Pod-to-pod requests can be tested by hand from a debugging pod:
+
 ```bash
-kubectl get deployments
-kubectl get pods
+kubectl run busybox --image=busybox --rm -it --restart=Never -- wget -qO - http://ping-pong-svc:2345/count
+# {"count":3}
 ```
 
-### View logs
-```bash
-kubectl logs -f deployment/log-output-dep
-```
+## Configuration
 
-### Delete deployment
-```bash
-kubectl delete -f manifests/deployment.yaml
-```
+- `PORT` - reader HTTP server port (default: 3000)
+- `PING_PONG_URL` - where the reader gets the pong count (default: `http://ping-pong-svc:2345/count`)
 
 ## Files
 
-- `main.go` - Main application code
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment configuration
+- `writer/` - Writes the timestamped random string to the shared file (Go 1.27, Alpine 3.24 with tzdata, Europe/Helsinki time)
+- `reader/` - Serves the log line and the ping-pong count over HTTP (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - One pod, two containers sharing an `emptyDir` volume
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
-- **Orchestration:** Kubernetes
+- **Orchestration:** Kubernetes, Traefik Ingress (k3s default)
