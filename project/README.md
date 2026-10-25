@@ -103,6 +103,34 @@ Production images pile up too, three for every deployment of `main`. The ACR tas
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
+## Logs in Azure Monitor (exercise 3.12)
+
+GKE sends container logs to Cloud Logging by itself. The AKS counterpart is **Azure Monitor Container insights**, enabled in [`../terraform/monitoring.tf`](../terraform/monitoring.tf): the agent `ama-logs` on every node sends the stdout and stderr of the containers in the namespace `project` to the Log Analytics workspace `log-dwk-aks-sc`, table `ContainerLogV2`. todo-backend logs JSON (exercise 2.10), so the fields of each line are columns in `LogMessage`.
+
+To find the log of a new todo:
+
+1. Create a todo in the app.
+2. In the Azure portal open **Kubernetes services → aks-dwk-sc → Monitoring → Logs** (or the workspace **log-dwk-aks-sc → Logs**), switch the editor to **KQL mode** and run:
+
+```kusto
+ContainerLogV2
+| where PodNamespace == "project" and ContainerName == "todo-backend"
+| where LogMessage has "todo created"
+| project TimeGenerated, PodName, Message = tostring(LogMessage.msg), Todo = tostring(LogMessage.text)
+| order by TimeGenerated desc
+```
+
+The same from the command line:
+
+```bash
+az monitor log-analytics query --workspace "$(az monitor log-analytics workspace show -g rg-dwk-aks-sc -n log-dwk-aks-sc --query customerId -o tsv)" \
+  --analytics-query 'ContainerLogV2 | where PodNamespace == "project" and LogMessage has "todo created" | take 10' -o table
+```
+
+Logs arrive within a few minutes. To keep the cost down, only the namespace `project` is collected (`namespaceFilteringMode: Include`), only three tables (ContainerLogV2, KubePodInventory, KubeEvents), retention is the free 30 days, and ingestion stops at 0.2 GB a day.
+
+![A new todo in the logs of todo-backend in Azure Monitor](images/azure-monitor-todo-created.png)
+
 ## Resource requests and limits (exercise 3.11)
 
 Every container of the project has resource requests and limits. The values come from `kubectl top pods --containers` while `hey` loaded the AKS deployment through the Gateway (about 50 concurrent users on `/` and `/api/todos`, roughly 1 300 requests per second):

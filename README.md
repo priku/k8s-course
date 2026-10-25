@@ -48,6 +48,7 @@ On Azure Kubernetes Service instead of Google Kubernetes Engine (chapter 1 of th
 - [3.9.](https://github.com/priku/k8s-course/tree/3.9/project#dbaas-vs-diy-exercise-39)
 - [3.10.](https://github.com/priku/k8s-course/tree/3.10/db-backup) ([terraform](https://github.com/priku/k8s-course/blob/3.10/terraform/backup.tf))
 - [3.11.](https://github.com/priku/k8s-course/tree/3.11/project#resource-requests-and-limits-exercise-311)
+- [3.12.](https://github.com/priku/k8s-course/tree/3.12/project#logs-in-azure-monitor-exercise-312) ([terraform](https://github.com/priku/k8s-course/blob/3.12/terraform/monitoring.tf))
 
 ---
 
