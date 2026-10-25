@@ -53,3 +53,12 @@ resource "azurerm_role_assignment" "github_aks_rbac_admin" {
   role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
   scope                = azurerm_kubernetes_cluster.aks.id
 }
+
+# Delete the images of a deleted branch (cleanup workflow, exercise 3.8). AcrDelete allows
+# deleting images in this registry only; it cannot push or change anything else.
+resource "azurerm_role_assignment" "github_acr_delete" {
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+  principal_type       = "ServicePrincipal"
+  role_definition_name = "AcrDelete"
+  scope                = azurerm_container_registry.acr.id
+}

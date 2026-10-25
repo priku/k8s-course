@@ -1,7 +1,7 @@
 name: Delete a branch environment
 
 # Exercise 3.8: deleting a branch deletes its environment, the namespace that the
-# deployment workflow (project.yaml) created for it. GitHub runs workflows for branch
+# deployment workflow (project.yaml) created for it, and the branch's images in ACR. GitHub runs workflows for branch
 # delete events from the default branch, so this file has to be on main.
 # It can also be run by hand for a branch that was deleted before this workflow existed.
 on:
@@ -25,6 +25,7 @@ concurrency:
 env:
   RESOURCE_GROUP: rg-dwk-aks-sc
   CLUSTER: aks-dwk-sc
+  REGISTRY: acrdwkakssc
 
 jobs:
   delete-environment:
@@ -87,3 +88,18 @@ jobs:
           else
             echo "No environment \`$NAMESPACE\`, nothing to delete" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Delete the branch's images
+        run: |
+          # The deployment tags them <namespace>-<commit SHA>. Match the whole tag, so that deleting
+          # the branch `feature` does not delete the images of the branch `feature-x`.
+          deleted=0
+          for app in todo-project todo-backend wiki-todo-generator; do
+            for tag in $(az acr repository show-tags --name "$REGISTRY" --repository "$app" -o tsv \
+                | grep -E "^${NAMESPACE}-[0-9a-f]{40}$" || true); do
+              az acr repository delete --name "$REGISTRY" --image "$app:$tag" --yes
+              echo "Deleted $app:$tag"
+              deleted=$((deleted + 1))
+            done
+          done
+          echo "Deleted $deleted images of \`$NAMESPACE\` from ACR" >> "$GITHUB_STEP_SUMMARY"

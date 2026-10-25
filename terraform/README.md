@@ -8,7 +8,8 @@ The course material uses Google Kubernetes Engine in Chapter 4, and also allows 
 | Node resource group | `rg-dwk-aks-nodes-sc` | Created by AKS for the VMs, disks, load balancer and public IPs |
 | Container registry | `acrdwkakssc.azurecr.io` | Basic SKU, no admin user; the nodes pull with their kubelet identity (`AcrPull`) |
 | Logic App | `logic-aks-dwk-sc-nightly-stop` | Stops the cluster every night at 23:59 Finnish time |
-| Managed identity | `id-dwk-github-actions` | Identity of the deployment workflow, trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercise 3.6) |
+| Managed identity | `id-dwk-github-actions` | Identity of the deployment workflows, trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercises 3.6–3.8) |
+| ACR task | `purge-old-project-images` | Deletes production images older than a week every Monday, keeping the five newest (`acr-purge.tf`) |
 | Gateway API | GatewayClass `approuting-istio` | AKS-managed Gateway API CRDs and the application routing Gateway API implementation (`gateway.tf`, exercise 3.3) |
 
 Sign-in to the cluster goes through Entra ID with Azure RBAC (`local_account_disabled`), so there are no static admin credentials. The user who runs Terraform gets `Azure Kubernetes Service RBAC Cluster Admin` on the cluster and `AcrPush` on the registry.
