@@ -1,3 +1,3 @@
 module ping-pong
 
-go 1.21
+go 1.27

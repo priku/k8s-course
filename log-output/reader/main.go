@@ -27,6 +27,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	logData, err := os.ReadFile("/usr/src/app/files/output.txt")
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
 		fmt.Fprintf(w, "Error reading log file: %v", err)
 		return
 	}
