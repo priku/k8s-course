@@ -44,6 +44,9 @@ func main() {
 
 	http.HandleFunc("GET /pingpong", handlePingPong)
 	http.HandleFunc("GET /count", handleCount)
+	// An Ingress such as GKE's health-checks every backend at "/" and expects 200,
+	// so answer there without counting. {$} matches only "/" itself
+	http.HandleFunc("GET /{$}", handleRoot)
 
 	fmt.Printf("Ping-pong server started on port %s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -107,6 +110,11 @@ func handlePingPong(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintf(w, "pong %d", currentCount)
+}
+
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprint(w, "ok")
 }
 
 func handleCount(w http.ResponseWriter, r *http.Request) {
