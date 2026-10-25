@@ -15,8 +15,6 @@ var (
 )
 
 func main() {
-	counter = 0
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
