@@ -1,82 +1,56 @@
 # Log Output Application
 
-A simple Go application that generates a random UUID on startup and outputs it with a timestamp every 5 seconds.
+A Go application that generates a random UUID on startup, keeps it in memory and prints it with a timestamp every 5 seconds. It also serves the current status over HTTP.
 
-## Exercise 1.1 & 1.3
+## Exercises
 
-This application fulfills the requirements for:
-- **Exercise 1.1:** Creating and deploying an application that outputs a random string with timestamp
-- **Exercise 1.3:** Moving to declarative approach with Kubernetes manifests
+- **1.1:** Random string generated on startup, printed with a timestamp every 5 seconds
+- **1.3:** Declarative deployment (`manifests/deployment.yaml`)
+- **1.7:** HTTP endpoint for the current status (timestamp and random string) and an Ingress for browser access
 
-## Features
+## Running locally
 
-- Generates a random UUID on application startup
-- Outputs the UUID with RFC3339 timestamp every 5 seconds
-- Containerized with multi-stage Docker build for small image size
-
-## Running Locally
-
-### Using Docker
-
-Build the image:
 ```bash
-docker build -t log-output:v1.0 .
+docker build -t log-output:v1.7 .
+docker run -p 3000:3000 log-output:v1.7
+# Logs: 2026-10-25T15:11:44.726149094Z: e2f97d37-4032-4768-adb8-b065cb6acf1d
+# Status page: http://localhost:3000
 ```
 
-Run the container:
+## Deploying to Kubernetes (k3d)
+
+The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
+
 ```bash
-docker run log-output:v1.0
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
 ```
 
-Expected output:
-```
-Log output application started
-2025-11-28T22:13:21.991206053Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-2025-11-28T22:13:26.991325185Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-...
-```
+Build, import and deploy:
 
-## Deploying to Kubernetes
-
-### Prerequisites
-- Kubernetes cluster (k3d, minikube, or similar)
-- kubectl configured
-
-### Import image to k3d (if using k3d)
 ```bash
-k3d image import log-output:v1.0
-```
-
-### Deploy
-```bash
-kubectl apply -f manifests/deployment.yaml
-```
-
-### Check deployment
-```bash
-kubectl get deployments
-kubectl get pods
-```
-
-### View logs
-```bash
+docker build -t log-output:v1.7 .
+k3d image import log-output:v1.7
+kubectl apply -f manifests/
 kubectl logs -f deployment/log-output-dep
+# Open http://localhost:8081
 ```
 
-### Delete deployment
-```bash
-kubectl delete -f manifests/deployment.yaml
-```
+Traffic flow: `localhost:8081` → Traefik Ingress `log-output-ingress` (`/`) → ClusterIP Service `log-output-svc:2345` → pod port `3000`.
+
+## Configuration
+
+- `PORT` - HTTP server port (default: 3000)
 
 ## Files
 
-- `main.go` - Main application code
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment configuration
+- `main.go` - Log loop and HTTP status endpoint
+- `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - Deployment with `PORT=3000`
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
+- `manifests/ingress.yaml` - Ingress routing `/` to the Service
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
-- **Orchestration:** Kubernetes
+- **Orchestration:** Kubernetes, Traefik Ingress (k3s default)
