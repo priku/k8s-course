@@ -19,7 +19,8 @@ permissions:
 # The same group as the deployment of the branch: if the branch is deleted while its
 # deployment is still running, wait for it, so the environment is not created after this run
 concurrency:
-  group: project-${{ github.event.ref || inputs.branch }}
+  # (a manual run also has github.event.ref, the branch it runs on, so pick by event type)
+  group: project-${{ github.event_name == 'delete' && github.event.ref || inputs.branch }}
   cancel-in-progress: false
 
 env:
