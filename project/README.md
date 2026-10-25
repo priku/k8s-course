@@ -103,6 +103,23 @@ Production images pile up too, three for every deployment of `main`. The ACR tas
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
+## DBaaS vs DIY (exercise 3.9)
+
+The project's Postgres runs in the cluster as a StatefulSet with an Azure Disk ("do it yourself"). The managed alternative in Azure is **Azure Database for PostgreSQL – Flexible Server** ("database as a service"; Cloud SQL in the course material). Prices are Sweden Central list prices in October 2026.
+
+| | DBaaS: Azure Database for PostgreSQL Flexible Server | DIY: Postgres StatefulSet in AKS (current) |
+|---|---|---|
+| **Getting started** | A Terraform resource (or a few clicks): server, version, size, firewall or private network. The app needs the server's host name and a login; with Entra ID authentication even the password can go, using workload identity. | A StatefulSet, a headless Service and a Secret that we write and keep up to date ourselves (`todo-backend/manifests/statefulset.yaml`). Needs Kubernetes knowledge: volume claim templates, storage classes, the Postgres 18 data directory change. |
+| **Cost** | Paid separately from the cluster. The smallest server (Burstable B1ms, 1 vCore, 2 GiB) is about 0.0175 €/h, so about 12.8 €/month if it runs all the time, plus storage from 32 GB upwards at 0.12 €/GB/month (about 3.9 €/month). It can be stopped for up to 7 days at a time. | Runs on nodes we pay for anyway, so the extra cost is the disk: 1 GiB StandardSSD (E1) is about 0.26 €/month. It also takes some CPU and memory from the nodes, which here means fewer branch environments fit. |
+| **Maintenance** | Azure patches the OS and minor versions in a maintenance window that we can choose; major upgrades are an in-place operation. Monitoring, metrics and alerts are built in. | All ours: image updates (we bumped 13 → 18 by hand), tuning, monitoring, and making sure the volume follows the pod. A wrong mount path (as in the original 2.7) silently loses data. |
+| **Backups** | Automatic daily backups with point-in-time restore to any second within the retention period (7–35 days), included up to the size of the provisioned storage. Restoring is one command or a few clicks and creates a new server. Geo-redundant backups as an option. | Nothing by default. We have to build it: a CronJob with `pg_dump` and storage for the dumps (exercise 3.10), retention, and a tested restore procedure. Only as fresh as the last dump; no point-in-time restore without WAL archiving, which is more work again. |
+| **Availability and scaling** | Zone-redundant high availability with automatic failover as an option (doubles the compute cost). Size and storage can be changed with little downtime; read replicas are available. | One pod and one disk in one zone. If the node fails, the pod and the disk move to another node, with downtime meanwhile. Scaling Postgres in Kubernetes properly needs an operator (e.g. CloudNativePG). |
+| **Security** | TLS, encryption at rest, Entra ID authentication, private endpoints and Defender for Cloud are built in. | Our job: the Secret (SOPS here), network policies, TLS between the app and the database (currently `sslmode=disable` inside the cluster). |
+| **Portability** | Tied to Azure, although it is standard Postgres and `pg_dump` works for moving out. | The same manifests run in k3d, AKS or any other cluster. |
+| **Branch environments** | One server per branch would be slow and expensive to create; branches would rather share one server with a database each. | A new StatefulSet per branch is cheap and quick, which is what makes the per-branch environments of exercise 3.7 easy. |
+
+**Conclusion.** For this course project DIY is the better fit: it costs almost nothing extra, it works the same locally and in every branch environment, and the data is not valuable. For anything with real users I would choose the managed Flexible Server: automatic backups with point-in-time restore, patching and high availability are a lot of work to build and keep working on our own, and its cost is small compared to that work. A common middle ground is to run the apps in Kubernetes and the production database as a managed service, while development and branch environments keep a database in the cluster.
+
 ## Files
 
 - `base/kustomization.yaml` - the three apps
