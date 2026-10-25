@@ -1,8 +1,8 @@
 module todo-backend
 
-go 1.21
+go 1.27
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.12.3
 )

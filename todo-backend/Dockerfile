@@ -1,21 +1,20 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
 # Copy go mod files
-COPY go.mod ./
+COPY go.* ./
 COPY main.go ./
 
 # Download dependencies
 RUN go mod download
-RUN go mod tidy
 
 # Build the application
 RUN go build -o todo-backend main.go
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.24
 
 WORKDIR /app
 

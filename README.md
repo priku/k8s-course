@@ -216,7 +216,7 @@ docker push $ACR_NAME.azurecr.io/ping-pong:latest
 ## 🛠️ Technology Stack
 
 ### Current
-- **Language**: Go 1.21
+- **Language**: Go 1.27
 - **Container**: Docker
 - **Orchestration**: Kubernetes (k3d local, AKS cloud)
 - **Infrastructure**: Terraform with Azure Verified Modules
