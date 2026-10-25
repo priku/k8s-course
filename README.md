@@ -1,5 +1,46 @@
-# AI-Enhanced Todo Application
-## DevOps with Kubernetes + Azure AI Services (AI-102)
+# DevOps with Kubernetes 2026
+
+Exercise submissions for [DevOps with Kubernetes](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes-2026) (University of Helsinki). Each app lives in its own directory with its own README, and every exercise has a GitHub release tagged with the exercise number.
+
+## Exercises
+
+### Chapter 2
+
+- [1.1.](https://github.com/priku/k8s-course/tree/1.1/log-output)
+- [1.2.](https://github.com/priku/k8s-course/tree/1.2/todo-project)
+- [1.3.](https://github.com/priku/k8s-course/tree/1.3/log-output)
+- [1.4.](https://github.com/priku/k8s-course/tree/1.4/todo-project)
+- [1.5.](https://github.com/priku/k8s-course/tree/1.5/todo-project)
+- [1.6.](https://github.com/priku/k8s-course/tree/1.6/todo-project)
+- [1.7.](https://github.com/priku/k8s-course/tree/1.7/log-output)
+- [1.8.](https://github.com/priku/k8s-course/tree/1.8/todo-project)
+- [1.9.](https://github.com/priku/k8s-course/tree/1.9/ping-pong)
+- [1.10.](https://github.com/priku/k8s-course/tree/1.10/log-output)
+- [1.11.](https://github.com/priku/k8s-course/tree/1.11/log-output) ([ping-pong](https://github.com/priku/k8s-course/tree/1.11/ping-pong))
+- [1.12.](https://github.com/priku/k8s-course/tree/1.12/todo-project)
+- [1.13.](https://github.com/priku/k8s-course/tree/1.13/todo-project)
+
+### Chapter 3
+
+- [2.1.](https://github.com/priku/k8s-course/tree/2.1/log-output) ([ping-pong](https://github.com/priku/k8s-course/tree/2.1/ping-pong))
+- [2.2.](https://github.com/priku/k8s-course/tree/2.2/todo-backend)
+- [2.3.](https://github.com/priku/k8s-course/tree/2.3/log-output) ([ping-pong](https://github.com/priku/k8s-course/tree/2.3/ping-pong))
+- [2.4.](https://github.com/priku/k8s-course/tree/2.4/todo-project) ([todo-backend](https://github.com/priku/k8s-course/tree/2.4/todo-backend))
+- [2.5.](https://github.com/priku/k8s-course/tree/2.5/log-output)
+- [2.6.](https://github.com/priku/k8s-course/tree/2.6/todo-project)
+- [2.7.](https://github.com/priku/k8s-course/tree/2.7/ping-pong)
+- [2.8.](https://github.com/priku/k8s-course/tree/2.8/todo-backend)
+- [2.9.](https://github.com/priku/k8s-course/tree/2.9/wiki-todo-generator)
+- [2.10.](https://github.com/priku/k8s-course/tree/2.10/todo-backend)
+
+### Chapter 4
+
+In progress (Google Kubernetes Engine).
+
+---
+
+## About the project: AI-Enhanced Todo Application
+### DevOps with Kubernetes + Azure AI Services (AI-102)
 
 [![Terraform](https://github.com/priku/k8s-course/actions/workflows/terraform.yml/badge.svg)](https://github.com/priku/k8s-course/actions/workflows/terraform.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -31,52 +72,6 @@ A production-grade, cloud-native todo application demonstrating Kubernetes orche
 
 - **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete architecture and roadmap
 - **[terraform/README.md](terraform/README.md)** - Azure infrastructure setup (AKS, ACR, AI Services)
-- **[SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md)** - Course submission instructions
-
----
-
-## 🚀 Current Status
-
-### Completed Exercises
-
-#### Part 1
-
-**Part 1**
- - [x] **[1.1](https://github.com/priku/k8s-course/tree/1.1)** - Log Output: UUID generation with timestamps
- - [x] **[1.2](https://github.com/priku/k8s-course/tree/1.2)** - Todo Project: Basic HTTP server
- - [x] **[1.3](https://github.com/priku/k8s-course/tree/1.3)** - Log Output: Declarative Kubernetes deployment
- - [x] **[1.4](https://github.com/priku/k8s-course/tree/1.4)** - Todo Project: Declarative Kubernetes deployment
- - [x] **[1.5](https://github.com/priku/k8s-course/tree/1.5)** - Todo Project: HTTP server with HTML response
- - [x] **[1.6](https://github.com/priku/k8s-course/tree/1.6)** - Todo Project: NodePort Service
- - [x] **[1.7](https://github.com/priku/k8s-course/tree/1.7)** - Log Output: HTTP endpoint with Ingress
- - [x] **[1.8](https://github.com/priku/k8s-course/tree/1.8)** - Todo Project: Ingress configuration
- - [x] **[1.9](https://github.com/priku/k8s-course/tree/1.9)** - Ping-pong application with shared Ingress
- - [x] **[1.10](https://github.com/priku/k8s-course/tree/1.10)** - Log Output: Split into two containers
- - [x] **[1.11](https://github.com/priku/k8s-course/tree/1.11)** - Share data between applications with PersistentVolume
- - [x] **[1.12](https://github.com/priku/k8s-course/tree/1.12)** - Todo Project: Cached daily image from Lorem Picsum
- - [x] **[1.13](https://github.com/priku/k8s-course/tree/1.13)** - Todo Project: Todo list with input field, validation, and hardcoded todos
-
-#### Part 2
-- [x] **[2.1](https://github.com/priku/k8s-course/tree/2.1)** - Connecting pods: HTTP communication between log-output and ping-pong
-- [x] **[2.2](https://github.com/priku/k8s-course/tree/2.2)** - Todo Backend: REST API service with GET/POST endpoints for todos
-- [x] **[2.3](https://github.com/priku/k8s-course/tree/2.3)** - Namespaces: Move log-output and ping-pong to exercises namespace
-- [x] **[2.4](https://github.com/priku/k8s-course/tree/2.4)** - Project Namespace: Move todo-project and todo-backend to project namespace
-- [x] **[2.5](https://github.com/priku/k8s-course/tree/2.5)** - ConfigMaps: Add configuration file and environment variable to log-output
-- [x] **[2.6](https://github.com/priku/k8s-course/tree/2.6)** - Externalize Configuration: Remove hard-coded configs from todo-project
-- [x] **[2.7](https://github.com/priku/k8s-course/tree/2.7)** - StatefulSets: Postgres database for ping-pong counter persistence
-- [x] **[2.8](https://github.com/priku/k8s-course/tree/2.8)** - Todo Backend Database: Postgres for todo persistence
-- [x] **[2.9](https://github.com/priku/k8s-course/tree/2.9)** - Daily Todos: Random daily todo from Wikipedia API
-- [x] **[2.10](https://github.com/priku/k8s-course/tree/2.10)** - CronJob: Scheduled Wikipedia todo fetcher
-
-#### Part 3: Cloud Deployment (Azure AKS)
-- [x] **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer - http://9.223.84.58/pingpong
-- [x] **[3.2](https://github.com/priku/k8s-course/tree/3.2)** - Deploy with Ingress: Log-output and Ping-pong with NGINX Ingress - http://4.165.21.217/
-- [x] **[3.3](https://github.com/priku/k8s-course/tree/3.3)** - To the Gateway: Replace Ingress with Gateway API (NGINX Gateway Fabric) - http://4.165.59.114/
-- [x] **[3.4](https://github.com/priku/k8s-course/tree/3.4)** - Rewritten routing: Path rewriting with Gateway API URLRewrite - http://4.165.59.114/pingpong
-- [x] **[3.5](https://github.com/priku/k8s-course/tree/3.5)** - Kustomize configuration: Deploy todo-project to AKS with Kustomize
-- [x] **[3.6](https://github.com/priku/k8s-course/tree/3.6)** - CI/CD for todo-project: GitHub Actions deployment pipeline to AKS
-- [x] **[3.7](https://github.com/priku/k8s-course/tree/3.7)** - Branch-based environments: Each branch deploys to its own namespace
-- [x] **[3.8](https://github.com/priku/k8s-course/tree/3.8)** - Environment cleanup: Automatic namespace deletion on branch removal
 
 ---
 
@@ -174,6 +169,19 @@ k8s-course/
 ## ☁️ Azure Infrastructure (Part 3+)
 
 Using **Azure Kubernetes Service (AKS)** instead of GKE, deployed with **Terraform** and **Azure Verified Modules (AVM)**.
+
+### Previous Part 3 solutions (AKS, 2025)
+
+These were done on Azure AKS before the 2026 course version; Part 3 is now being redone on GKE.
+
+- **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer - http://9.223.84.58/pingpong
+- **[3.2](https://github.com/priku/k8s-course/tree/3.2)** - Deploy with Ingress: Log-output and Ping-pong with NGINX Ingress - http://4.165.21.217/
+- **[3.3](https://github.com/priku/k8s-course/tree/3.3)** - To the Gateway: Replace Ingress with Gateway API (NGINX Gateway Fabric) - http://4.165.59.114/
+- **[3.4](https://github.com/priku/k8s-course/tree/3.4)** - Rewritten routing: Path rewriting with Gateway API URLRewrite - http://4.165.59.114/pingpong
+- **[3.5](https://github.com/priku/k8s-course/tree/3.5)** - Kustomize configuration: Deploy todo-project to AKS with Kustomize
+- **[3.6](https://github.com/priku/k8s-course/tree/3.6)** - CI/CD for todo-project: GitHub Actions deployment pipeline to AKS
+- **[3.7](https://github.com/priku/k8s-course/tree/3.7)** - Branch-based environments: Each branch deploys to its own namespace
+- **[3.8](https://github.com/priku/k8s-course/tree/3.8)** - Environment cleanup: Automatic namespace deletion on branch removal
 
 ### Infrastructure Components
 | Resource | Type | Region |
