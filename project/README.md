@@ -91,7 +91,7 @@ kubectl get gateway project-gateway -n <namespace>
 
 ## Deleting a branch deletes its environment (exercise 3.8)
 
-[`.github/workflows/project-cleanup.yaml`](../.github/workflows/project-cleanup.yaml) runs when a branch is deleted and deletes the branch's namespace. That removes the whole environment: the apps, the Gateway with its public IP, and the claims, whose Azure Disks are deleted with them. It computes the namespace from the branch name the same way as the deployment, refuses `main` and the reserved namespaces, and starts the cluster first if it is stopped.
+[`.github/workflows/project-cleanup.yaml`](../.github/workflows/project-cleanup.yaml) runs when a branch is deleted and deletes the branch's namespace. That removes the whole environment: the apps, the Gateway with its public IP, and the claims, whose Azure Disks are deleted with them. It then deletes the branch's images from ACR: the tags `<namespace>-<commit SHA>` of the three repositories, matched as whole tags so that deleting `feature` leaves the images of `feature-x` alone. The workflow's identity has `AcrDelete` on the registry for this. It computes the namespace from the branch name the same way as the deployment, refuses `main` and the reserved namespaces, and starts the cluster first if it is stopped.
 
 GitHub runs workflows for branch delete events only from the default branch, so this workflow works once it is on `main`. It shares the concurrency group of the branch's deployment, so when a branch is deleted while its deployment still runs (as with `gh pr merge --delete-branch` right after a push), the deletion waits for the deployment to finish instead of racing it. For a branch that was deleted before that, run it by hand:
 
@@ -99,7 +99,7 @@ GitHub runs workflows for branch delete events only from the default branch, so 
 gh workflow run project-cleanup.yaml -f branch=<deleted branch>
 ```
 
-The images of a deleted branch stay in ACR; delete them with `az acr repository delete` if needed.
+Production images pile up too, three for every deployment of `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `project-*` images older than a week, keeping the five newest of each repository, and untagged manifests. The hand-built version tags such as `v2.9` are not touched.
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
