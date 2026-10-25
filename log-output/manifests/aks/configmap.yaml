@@ -5,5 +5,5 @@ metadata:
   name: log-output-config
 data:
   information.txt: |
-    This is a config file from ConfigMap for log-output application
-    Exercise 2.5 - ConfigMaps and environment variables
+    this text is from file
+  MESSAGE: "hello world"

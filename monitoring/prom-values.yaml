@@ -1,0 +1,10 @@
+# Prometheus: metrics stored locally, no alerting or remote forwarding
+alertmanager:
+  enabled: false
+
+# The course material says "pushgateway", but the chart's subchart key is prometheus-pushgateway
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  remoteWrite: []

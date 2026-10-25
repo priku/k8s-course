@@ -6,3 +6,4 @@ metadata:
 data:
   IMAGE_URL: "https://picsum.photos/1200"
   IMAGE_REFRESH_INTERVAL: "10m"
+  BACKEND_URL: "/api"

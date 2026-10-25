@@ -1,65 +1,75 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var db *sql.DB
+var db *pgxpool.Pool
 
 func main() {
-	// Get configuration from environment
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
 	}
 
-	dbURL := os.Getenv("POSTGRES_URL")
-	if dbURL == "" {
-		dbURL = "postgres://postgres:example@postgres-svc:5432/postgres?sslmode=disable"
-	}
-
-	// Initialize database
+	// Connection settings come from the standard PG* env variables (PGHOST, PGUSER, PGPASSWORD, ...)
+	ctx := context.Background()
 	var err error
-	db, err = sql.Open("postgres", dbURL)
+	db, err = pgxpool.New(ctx, "")
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Invalid database configuration: %v", err)
 	}
 	defer db.Close()
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	if err := waitForDB(ctx); err != nil {
+		log.Fatalf("Database not available: %v", err)
 	}
-
-	// Initialize counter table
-	if err := initDB(); err != nil {
+	if err := initDB(ctx); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/pingpong", handlePingPong)
-	http.HandleFunc("/count", handleCount)
+	cfg := db.Config().ConnConfig
+	fmt.Printf("Connected to database %s at %s:%d\n", cfg.Database, cfg.Host, cfg.Port)
+	if count, err := getCounter(ctx); err == nil {
+		fmt.Printf("Counter starting at: %d\n", count)
+	}
+
+	http.HandleFunc("GET /pingpong", handlePingPong)
+	http.HandleFunc("GET /count", handleCount)
 
 	fmt.Printf("Ping-pong server started on port %s\n", port)
-	fmt.Printf("Database connected: %s\n", dbURL)
-
-	counter, _ := getCounter()
-	fmt.Printf("Counter starting at: %d\n", counter)
-
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func initDB() error {
-	_, err := db.Exec(`
+// waitForDB retries for a while, since Postgres may still be starting when ping-pong starts
+func waitForDB(ctx context.Context) error {
+	const attempts = 30
+	var err error
+	for i := 1; i <= attempts; i++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = db.Ping(pingCtx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		log.Printf("Database not ready (attempt %d/%d): %v", i, attempts, err)
+		time.Sleep(2 * time.Second)
+	}
+	return err
+}
+
+func initDB(ctx context.Context) error {
+	_, err := db.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS counter (
 			id INTEGER PRIMARY KEY,
 			count INTEGER NOT NULL
@@ -69,30 +79,26 @@ func initDB() error {
 		return err
 	}
 
-	// Initialize counter if not exists
-	_, err = db.Exec(`
-		INSERT INTO counter (id, count) VALUES (1, 0)
-		ON CONFLICT (id) DO NOTHING
-	`)
+	// The counter is a single row that is created once
+	_, err = db.Exec(ctx, `INSERT INTO counter (id, count) VALUES (1, 0) ON CONFLICT (id) DO NOTHING`)
 	return err
 }
 
-func getCounter() (int, error) {
+func getCounter(ctx context.Context) (int, error) {
 	var count int
-	err := db.QueryRow("SELECT count FROM counter WHERE id = 1").Scan(&count)
+	err := db.QueryRow(ctx, "SELECT count FROM counter WHERE id = 1").Scan(&count)
 	return count, err
 }
 
-func incrementCounter() (int, error) {
-	var count int
-	err := db.QueryRow(`
-		UPDATE counter SET count = count + 1 WHERE id = 1 RETURNING count
-	`).Scan(&count)
-	return count - 1, err // Return the value before increment
+// incrementCounter adds one in a single atomic UPDATE and returns the value before it
+func incrementCounter(ctx context.Context) (int, error) {
+	var previous int
+	err := db.QueryRow(ctx, "UPDATE counter SET count = count + 1 WHERE id = 1 RETURNING count - 1").Scan(&previous)
+	return previous, err
 }
 
 func handlePingPong(w http.ResponseWriter, r *http.Request) {
-	currentCount, err := incrementCounter()
+	currentCount, err := incrementCounter(r.Context())
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		log.Printf("Error incrementing counter: %v", err)
@@ -103,18 +109,8 @@ func handlePingPong(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "pong %d", currentCount)
 }
 
-func handleRoot(w http.ResponseWriter, r *http.Request) {
-	// Health check endpoint required by Ingress
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprint(w, "OK")
-}
-
 func handleCount(w http.ResponseWriter, r *http.Request) {
-	currentCount, err := getCounter()
+	currentCount, err := getCounter(r.Context())
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		log.Printf("Error getting counter: %v", err)

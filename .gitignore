@@ -61,3 +61,7 @@ coverage/
 *.temp
 .cache/
 nul
+
+# age private keys (SOPS)
+key.txt
+keys.txt
