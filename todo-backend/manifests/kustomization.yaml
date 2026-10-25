@@ -1,0 +1,9 @@
+# todo-backend and its Postgres, the same in every cluster.
+# The database password is a SOPS-encrypted Secret in ../secrets/, applied separately.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - configmap.yaml
+  - statefulset.yaml
+  - deployment.yaml
+  - service.yaml

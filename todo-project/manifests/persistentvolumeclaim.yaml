@@ -4,7 +4,6 @@ metadata:
   namespace: project
   name: todo-project-image-pvc
 spec:
-  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:

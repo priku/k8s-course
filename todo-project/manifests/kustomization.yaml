@@ -1,0 +1,9 @@
+# The todo project frontend, the same in every cluster.
+# Cluster-specific routing is in the overlays under ../../project/.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - configmap.yaml
+  - persistentvolumeclaim.yaml
+  - deployment.yaml
+  - service.yaml

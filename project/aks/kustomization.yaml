@@ -1,0 +1,16 @@
+# Azure Kubernetes Service: images from the course registry, Gateway API routing
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - gateway.yaml
+images:
+  - name: todo-project
+    newName: acrdwkakssc.azurecr.io/todo-project
+    newTag: v2.9
+  - name: todo-backend
+    newName: acrdwkakssc.azurecr.io/todo-backend
+    newTag: v2.10
+  - name: wiki-todo-generator
+    newName: acrdwkakssc.azurecr.io/wiki-todo-generator
+    newTag: v2.9

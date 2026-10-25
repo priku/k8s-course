@@ -1,0 +1,8 @@
+# The whole todo project: frontend, backend with its database, and the hourly CronJob.
+# The overlays ../k3d and ../aks add what differs between the clusters.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../todo-project/manifests
+  - ../../todo-backend/manifests
+  - ../../wiki-todo-generator/manifests
