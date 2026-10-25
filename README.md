@@ -50,6 +50,10 @@ On Azure Kubernetes Service instead of Google Kubernetes Engine (chapter 1 of th
 - [3.11.](https://github.com/priku/k8s-course/tree/3.11/project#resource-requests-and-limits-exercise-311)
 - [3.12.](https://github.com/priku/k8s-course/tree/3.12/project#logs-in-azure-monitor-exercise-312) ([terraform](https://github.com/priku/k8s-course/blob/3.12/terraform/monitoring.tf))
 
+Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `log-dwk-aks-sc`, see the [query](https://github.com/priku/k8s-course/tree/3.12/project#logs-in-azure-monitor-exercise-312)):
+
+![A new todo in the logs of todo-backend in Azure Monitor](project/images/azure-monitor-todo-created.png)
+
 ---
 
 ## About the project: AI-Enhanced Todo Application
