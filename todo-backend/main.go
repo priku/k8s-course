@@ -1,16 +1,18 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
-	"github.com/google/uuid"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Todo struct {
@@ -24,84 +26,93 @@ type CreateTodoRequest struct {
 	Text string `json:"text"`
 }
 
-var db *sql.DB
+var (
+	db            *pgxpool.Pool
+	maxTodoLength int
+)
+
+// requireEnv returns the value of an environment variable and stops the app if it is not set,
+// so that a missing configuration fails at startup instead of falling back to a hidden default
+func requireEnv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("Environment variable %s is not set", name)
+	}
+	return value
+}
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-	}
+	port := requireEnv("PORT")
 
-	dbURL := os.Getenv("POSTGRES_URL")
-	if dbURL == "" {
-		dbURL = "postgres://postgres:example@postgres-svc:5432/todos?sslmode=disable"
-	}
-
-	// Initialize database
 	var err error
-	db, err = sql.Open("postgres", dbURL)
+	if maxTodoLength, err = strconv.Atoi(requireEnv("TODO_MAX_LENGTH")); err != nil || maxTodoLength < 1 {
+		log.Fatalf("Invalid TODO_MAX_LENGTH: must be a positive integer")
+	}
+
+	// pgx reads the connection from the standard PG* env variables. Require them here,
+	// since pgx would otherwise fall back to defaults such as localhost
+	for _, name := range []string{"PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "PGSSLMODE"} {
+		requireEnv(name)
+	}
+
+	ctx := context.Background()
+	db, err = pgxpool.New(ctx, "")
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Invalid database configuration: %v", err)
 	}
 	defer db.Close()
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+	if err := waitForDB(ctx); err != nil {
+		log.Fatalf("Database not available: %v", err)
 	}
-
-	// Initialize database schema
-	if err := initDB(); err != nil {
+	if err := initDB(ctx); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Setup routes
-	http.HandleFunc("/todos", handleTodos)
-	http.HandleFunc("/healthz", handleHealth)
+	cfg := db.Config().ConnConfig
+	fmt.Printf("Connected to database %s at %s:%d\n", cfg.Database, cfg.Host, cfg.Port)
 
-	fmt.Printf("Todo-backend server started on port %s\n", port)
-	fmt.Printf("Database connected: %s\n", dbURL)
+	http.HandleFunc("GET /todos", handleGetTodos)
+	http.HandleFunc("POST /todos", handleCreateTodo)
+	http.HandleFunc("GET /healthz", handleHealth)
+
+	fmt.Printf("Todo-backend server started on port %s, max todo length %d\n", port, maxTodoLength)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func initDB() error {
-	_, err := db.Exec(`
+// waitForDB retries for a while, since Postgres may still be starting when the backend starts
+func waitForDB(ctx context.Context) error {
+	const attempts = 30
+	var err error
+	for i := 1; i <= attempts; i++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = db.Ping(pingCtx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		log.Printf("Database not ready (attempt %d/%d): %v", i, attempts, err)
+		time.Sleep(2 * time.Second)
+	}
+	return err
+}
+
+func initDB(ctx context.Context) error {
+	_, err := db.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS todos (
-			id TEXT PRIMARY KEY,
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			text TEXT NOT NULL,
 			done BOOLEAN NOT NULL DEFAULT FALSE,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW()
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`)
 	return err
 }
 
-func handleTodos(w http.ResponseWriter, r *http.Request) {
-	// Enable CORS for frontend
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	// Handle preflight request
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	switch r.Method {
-	case "GET":
-		handleGetTodos(w, r)
-	case "POST":
-		handleCreateTodo(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
 func handleGetTodos(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT id, text, done, created_at FROM todos ORDER BY created_at DESC")
+	rows, err := db.Query(r.Context(), "SELECT id::text, text, done, created_at FROM todos ORDER BY created_at")
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		log.Printf("Error querying todos: %v", err)
@@ -114,48 +125,49 @@ func handleGetTodos(w http.ResponseWriter, r *http.Request) {
 		var todo Todo
 		if err := rows.Scan(&todo.ID, &todo.Text, &todo.Done, &todo.CreatedAt); err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
-			log.Printf("Error scanning todo: %v", err)
+			log.Printf("Error reading todo: %v", err)
 			return
 		}
 		todos = append(todos, todo)
+	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		log.Printf("Error reading todos: %v", err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(todos); err != nil {
 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
-		return
 	}
 }
 
 func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	var req CreateTodoRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Text == "" {
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
 		http.Error(w, "Todo text is required", http.StatusBadRequest)
 		return
 	}
 
-	// Validate length (max 140 characters)
-	if len(req.Text) > 140 {
-		http.Error(w, "Todo text must be 140 characters or less", http.StatusBadRequest)
+	// Count characters, not bytes, so that ä or an emoji counts as one
+	if utf8.RuneCountInString(text) > maxTodoLength {
+		http.Error(w, fmt.Sprintf("Todo text must be %d characters or less", maxTodoLength), http.StatusBadRequest)
 		return
 	}
 
-	todo := Todo{
-		ID:        uuid.New().String(),
-		Text:      req.Text,
-		Done:      false,
-		CreatedAt: time.Now(),
-	}
-
-	_, err := db.Exec(
-		"INSERT INTO todos (id, text, done, created_at) VALUES ($1, $2, $3, $4)",
-		todo.ID, todo.Text, todo.Done, todo.CreatedAt,
-	)
+	// The database fills in the id, done and created_at, and returns the whole row
+	var todo Todo
+	err := db.QueryRow(r.Context(),
+		"INSERT INTO todos (text) VALUES ($1) RETURNING id::text, text, done, created_at",
+		text,
+	).Scan(&todo.ID, &todo.Text, &todo.Done, &todo.CreatedAt)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		log.Printf("Error creating todo: %v", err)
@@ -165,15 +177,16 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(todo); err != nil {
-		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		log.Printf("Error encoding response: %v", err)
 		return
 	}
 
 	fmt.Printf("Created todo: %s - %s\n", todo.ID, todo.Text)
 }
 
+// handleHealth reports whether the database is reachable
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	if err := db.Ping(); err != nil {
+	if err := db.Ping(r.Context()); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		fmt.Fprint(w, "Database unavailable")
 		return
