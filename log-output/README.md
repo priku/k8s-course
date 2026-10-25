@@ -1,82 +1,61 @@
 # Log Output Application
 
-A simple Go application that generates a random UUID on startup and outputs it with a timestamp every 5 seconds.
+Two containers in one pod that share a file through an `emptyDir` volume:
 
-## Exercise 1.1 & 1.3
+- **writer** generates a random UUID on startup and every 5 seconds writes `<timestamp>: <uuid>` to `/usr/src/app/files/output.txt`
+- **reader** serves the contents of that file over HTTP
 
-This application fulfills the requirements for:
-- **Exercise 1.1:** Creating and deploying an application that outputs a random string with timestamp
-- **Exercise 1.3:** Moving to declarative approach with Kubernetes manifests
+## Exercises
 
-## Features
+- **1.1:** Random string generated on startup, printed with a timestamp every 5 seconds
+- **1.3:** Declarative deployment (`manifests/deployment.yaml`)
+- **1.7:** HTTP endpoint for the current status and an Ingress for browser access
+- **1.9:** Shares an Ingress with the [ping-pong application](../ping-pong)
+- **1.10:** Split into two containers in a single pod
 
-- Generates a random UUID on application startup
-- Outputs the UUID with RFC3339 timestamp every 5 seconds
-- Containerized with multi-stage Docker build for small image size
+## Deploying to Kubernetes (k3d)
 
-## Running Locally
+The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
 
-### Using Docker
-
-Build the image:
 ```bash
-docker build -t log-output:v1.0 .
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
 ```
 
-Run the container:
+Build, import and deploy:
+
 ```bash
-docker run log-output:v1.0
+docker build -t log-writer:v1.10 writer
+docker build -t log-reader:v1.10 reader
+k3d image import log-writer:v1.10 log-reader:v1.10
+kubectl apply -f manifests/
+kubectl apply -f ../ping-pong/manifests/   # shared Ingress app-ingress
+# Open http://localhost:8081
 ```
 
-Expected output:
-```
-Log output application started
-2025-11-28T22:13:21.991206053Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-2025-11-28T22:13:26.991325185Z: 89e43ff3-dd56-4e1b-b92a-1cb0e1ae02fd
-...
-```
+With more than one container in the pod, pick the container with `-c`:
 
-## Deploying to Kubernetes
-
-### Prerequisites
-- Kubernetes cluster (k3d, minikube, or similar)
-- kubectl configured
-
-### Import image to k3d (if using k3d)
 ```bash
-k3d image import log-output:v1.0
+kubectl logs -f deployment/log-output-dep -c log-writer
+kubectl logs -f deployment/log-output-dep -c log-reader
 ```
 
-### Deploy
-```bash
-kubectl apply -f manifests/deployment.yaml
-```
+Traffic flow: `localhost:8081` → Traefik Ingress `app-ingress` (`/`) → ClusterIP Service `log-output-svc:2345` → reader container port `3000` → reads `output.txt` from the shared volume.
 
-### Check deployment
-```bash
-kubectl get deployments
-kubectl get pods
-```
+The volume is an `emptyDir`, so the file lives as long as the pod: a new pod starts with an empty volume and a new random string.
 
-### View logs
-```bash
-kubectl logs -f deployment/log-output-dep
-```
+## Configuration
 
-### Delete deployment
-```bash
-kubectl delete -f manifests/deployment.yaml
-```
+- `PORT` - reader HTTP server port (default: 3000)
 
 ## Files
 
-- `main.go` - Main application code
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment configuration
+- `writer/` - Writes the timestamped random string to the shared file (Go 1.27, Alpine 3.24 with tzdata, Europe/Helsinki time)
+- `reader/` - Serves the shared file over HTTP (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - One pod, two containers, shared `emptyDir` volume
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
-- **Orchestration:** Kubernetes
+- **Orchestration:** Kubernetes, Traefik Ingress (k3s default)

@@ -1,102 +1,58 @@
 # Todo Project Application
 
-A simple Go web server with configurable PORT via environment variable. This is the course project that will be extended throughout the DevOps with Kubernetes course.
+The course project: a Go web server that will grow into a todo application during the DevOps with Kubernetes course.
 
-## Exercise 1.2 & 1.4
+## Exercises
 
-This application fulfills the requirements for:
-- **Exercise 1.2:** Creating a web server that outputs "Server started in port NNNN" with configurable PORT
-- **Exercise 1.4:** Creating declarative deployment configuration for Kubernetes
+- **1.2:** Web server that prints "Server started in port NNNN", port chosen with the `PORT` environment variable
+- **1.4:** Declarative deployment (`manifests/deployment.yaml`)
+- **1.5:** Responds to `GET /` with an HTML page
+- **1.6:** NodePort Service for access from outside the cluster
+- **1.8:** Ingress instead of NodePort
 
-## Features
+## Running locally
 
-- Simple HTTP web server
-- Configurable port via `PORT` environment variable (defaults to 3000)
-- Outputs startup message with the configured port
-- Containerized with multi-stage Docker build
-
-## Running Locally
-
-### Using Docker
-
-Build the image:
 ```bash
-docker build -t todo-project:v1.0 .
+docker build -t todo-project:v1.8 .
+docker run -p 3000:3000 todo-project:v1.8
+# Open http://localhost:3000
 ```
 
-Run with default port (3000):
+## Deploying to Kubernetes (k3d)
+
+The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
+
 ```bash
-docker run -p 3000:3000 todo-project:v1.0
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
 ```
 
-Run with custom port:
+Build, import and deploy:
+
 ```bash
-docker run -e PORT=8080 -p 8080:8080 todo-project:v1.0
+docker build -t todo-project:v1.8 .
+k3d image import todo-project:v1.8
+kubectl apply -f manifests/
+# Open http://localhost:8081
 ```
 
-Expected output:
-```
-Server started in port 3000
-```
+If the Log output / ping-pong Ingress (`app-ingress`, exercise 1.9) is in the cluster, delete it first so the two don't compete for `/`:
 
-## Deploying to Kubernetes
-
-### Prerequisites
-- Kubernetes cluster (k3d, minikube, or similar)
-- kubectl configured
-
-### Import image to k3d (if using k3d)
 ```bash
-k3d image import todo-project:v1.0
+kubectl delete ingress app-ingress
 ```
 
-### Deploy
-```bash
-kubectl apply -f manifests/deployment.yaml
-```
-
-### Check deployment
-```bash
-kubectl get deployments
-kubectl get pods
-```
-
-### View logs
-```bash
-kubectl logs -f deployment/todo-project-dep
-```
-
-### Delete deployment
-```bash
-kubectl delete -f manifests/deployment.yaml
-```
-
-## Configuration
-
-The application uses the following environment variable:
-
-- `PORT` - The port number the server listens on (default: 3000)
-
-The Kubernetes deployment is configured with `PORT=3000` in the deployment manifest.
+Traffic flow: `localhost:8081` → Traefik Ingress `todo-project-ingress` (`/`) → ClusterIP Service `todo-project-svc:2345` → pod port `3000`.
 
 ## Files
 
-- `main.go` - Main application code
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment configuration with environment variables
+- `main.go` - HTTP server
+- `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - Deployment with `PORT=3000`
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
+- `manifests/ingress.yaml` - Ingress routing `/` to the Service
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
-- **Orchestration:** Kubernetes
-
-## Future Enhancements
-
-This is the starting point for the course project. Future exercises will add:
-- Todo CRUD functionality
-- Database integration
-- Additional microservices
-- Monitoring and logging
-- And more!
+- **Orchestration:** Kubernetes, Traefik Ingress (k3s default)
