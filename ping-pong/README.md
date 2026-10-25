@@ -1,0 +1,59 @@
+# Ping-pong Application
+
+A Go HTTP server that responds to `GET /pingpong` with `pong N`, where N is the number of earlier requests. The request count is saved to `/usr/src/app/files/pingpong.txt` on a PersistentVolume shared with the [Log output application](../log-output), which displays it. The count is loaded on startup, so it survives pod restarts.
+
+## Exercises
+
+- **1.9:** Responds with "pong 0", "pong 1", …; shares an Ingress with the [Log output application](../log-output) and is routed at `/pingpong`
+- **1.11:** Saves the request count to a PersistentVolume shared with Log output
+
+## Running locally
+
+```bash
+docker build -t ping-pong:v1.11 .
+docker run -p 3000:3000 -v "$PWD/files:/usr/src/app/files" ping-pong:v1.11
+curl http://localhost:3000/pingpong   # pong 0
+curl http://localhost:3000/pingpong   # pong 1
+```
+
+## Deploying to Kubernetes (k3d)
+
+The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
+
+```bash
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
+```
+
+Create the shared storage first (see [`../manifests`](../manifests)), then deploy together with Log output, which serves `/`:
+
+```bash
+docker exec k3d-k3s-default-agent-0 mkdir -p /tmp/kube
+kubectl apply -f ../manifests/   # PersistentVolume + PersistentVolumeClaim
+docker build -t ping-pong:v1.11 .
+k3d image import ping-pong:v1.11
+kubectl apply -f manifests/
+kubectl apply -f ../log-output/manifests/
+curl http://localhost:8081/pingpong   # pong 0
+```
+
+The app listens on `/pingpong` itself, so the Ingress needs no path rewriting.
+
+Traffic flow: `localhost:8081/pingpong` → Traefik Ingress `app-ingress` → ClusterIP Service `ping-pong-svc:2345` → pod port `3000`.
+
+## Configuration
+
+- `PORT` - HTTP server port (default: 3000)
+
+## Files
+
+- `main.go` - HTTP server; counter loaded from and saved to `pingpong.txt`
+- `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - Deployment with `PORT=3000`, volume from PersistentVolumeClaim `shared-pvc`
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
+- `manifests/ingress.yaml` - Shared Ingress: `/pingpong` → ping-pong, `/` → Log output
+
+## Technologies
+
+- **Language:** Go 1.27
+- **Container:** Docker (multi-stage build with Alpine Linux)
+- **Orchestration:** Kubernetes, Traefik Ingress (k3s default)
