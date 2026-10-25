@@ -1,0 +1,83 @@
+name: Delete a branch environment
+
+# Exercise 3.8: deleting a branch deletes its environment, the namespace that the
+# deployment workflow (project.yaml) created for it. GitHub runs workflows for branch
+# delete events from the default branch, so this file has to be on main.
+# It can also be run by hand for a branch that was deleted before this workflow existed.
+on:
+  delete:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Deleted branch whose environment to remove'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  RESOURCE_GROUP: rg-dwk-aks-sc
+  CLUSTER: aks-dwk-sc
+
+jobs:
+  delete-environment:
+    name: Delete the environment
+    # The delete event also fires for deleted tags
+    if: github.event_name == 'workflow_dispatch' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    environment: aks
+
+    steps:
+      - name: Choose the namespace
+        env:
+          BRANCH: ${{ github.event_name == 'delete' && github.event.ref || inputs.branch }}
+        run: |
+          # The same name as the deployment workflow uses for the branch
+          namespace=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//' | cut -c1-63 | sed -E 's/-+$//')
+          # Never touch production or the cluster's own namespaces
+          case "$BRANCH:$namespace" in
+            main:*|*:|*:project|*:default|*:exercises|*:monitoring|*:traefik|*:kube-*|*:aks-*|*:gatekeeper-*)
+              echo "::error::Refusing to delete the namespace '$namespace' of branch '$BRANCH'"
+              exit 1 ;;
+          esac
+          echo "NAMESPACE=$namespace" >> "$GITHUB_ENV"
+          echo "Branch $BRANCH → namespace $namespace"
+
+      - name: Sign in to Azure (OIDC, no stored passwords)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start the cluster if the nightly stop has stopped it
+        run: |
+          state=$(az aks show -g "$RESOURCE_GROUP" -n "$CLUSTER" --query powerState.code -o tsv)
+          echo "Cluster power state: $state"
+          if [ "$state" = "Stopped" ]; then
+            az aks start -g "$RESOURCE_GROUP" -n "$CLUSTER"
+          fi
+
+      - name: Set up kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.21
+
+      - name: Get the AKS credentials
+        uses: azure/aks-set-context@v5
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER }}
+          use-kubelogin: 'true'
+
+      - name: Delete the namespace
+        run: |
+          if kubectl get namespace "$NAMESPACE" > /dev/null 2>&1; then
+            # Deleting the namespace deletes everything in it: the apps, the Gateway and its
+            # public IP, and the claims, whose Azure Disks are then deleted too
+            kubectl delete namespace "$NAMESPACE" --timeout=10m
+            echo "Deleted the environment \`$NAMESPACE\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No environment \`$NAMESPACE\`, nothing to delete" >> "$GITHUB_STEP_SUMMARY"
+          fi
