@@ -12,10 +12,23 @@ spec:
       labels:
         app: log-output
     spec:
+      volumes:
+        - name: shared-logs
+          persistentVolumeClaim:
+            claimName: shared-pvc
       containers:
-        - name: log-output
-          image: log-output:v1.7
+        - name: log-writer
+          image: log-writer:v1.11
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: shared-logs
+              mountPath: /usr/src/app/files
+        - name: log-reader
+          image: log-reader:v1.11
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
+          volumeMounts:
+            - name: shared-logs
+              mountPath: /usr/src/app/files
