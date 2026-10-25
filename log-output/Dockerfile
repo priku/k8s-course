@@ -1,17 +1,16 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+COPY go.* ./
 COPY main.go ./
 
 RUN go mod download
-RUN go mod tidy
 RUN go build -o log-output main.go
 
 # Run stage
-FROM alpine:latest
+FROM alpine:3.24
 
 # Install timezone data
 RUN apk add --no-cache tzdata
