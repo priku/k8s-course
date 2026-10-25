@@ -28,6 +28,14 @@ spec:
             - name: db-backup
               image: db-backup:v3.10
               imagePullPolicy: IfNotPresent
+              # pg_dump and gzip of a small database
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
               envFrom:
                 # PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE of the todo database
                 - configMapRef:
