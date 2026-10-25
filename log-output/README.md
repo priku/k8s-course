@@ -77,6 +77,6 @@ kubectl delete -f manifests/deployment.yaml
 
 ## Technologies
 
-- **Language:** Go 1.21
+- **Language:** Go 1.27
 - **Container:** Docker (multi-stage build with Alpine Linux)
 - **Orchestration:** Kubernetes
