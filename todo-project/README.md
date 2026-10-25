@@ -16,6 +16,7 @@ The course project's frontend: a Go web server that serves the HTML page and the
 - **2.6:** No hardcoded ports, URLs or other settings: all configuration comes from env variables set in ConfigMaps and the Deployment
 - **2.8:** The todos are saved in Postgres by [todo-backend](../todo-backend), so they survive restarts
 - **2.9:** [wiki-todo-generator](../wiki-todo-generator) adds a `Read <random Wikipedia URL>` todo every hour; Enter in the input now sends the todo
+- **3.5:** The project is deployed with Kustomize, locally and to Azure Kubernetes Service (see [`../project`](../project))
 
 ## Running locally
 
@@ -32,7 +33,7 @@ docker run -p 3000:3000 -e PORT=3000 -e IMAGE_DIR=/usr/src/app/files \
 The cluster needs host port 8081 mapped to the load balancer (Traefik Ingress):
 
 ```bash
-k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
+k3d cluster create --image rancher/k3s:v1.37.1-k3s1 --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
 ```
 
 Everything of the project, including todo-backend, runs in the namespace `project` (set in each manifest's `metadata.namespace`). Create it first:
@@ -41,7 +42,7 @@ Everything of the project, including todo-backend, runs in the namespace `projec
 kubectl apply -f ../manifests/project-namespace.yaml
 ```
 
-Build, import and deploy together with todo-backend:
+Build, import and deploy the whole project with Kustomize (see [`../project`](../project) for the layout and for Azure Kubernetes Service):
 
 ```bash
 sops --decrypt ../todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
@@ -49,9 +50,7 @@ docker build -t todo-project:v2.9 .
 docker build -t todo-backend:v2.10 ../todo-backend
 docker build -t wiki-todo-generator:v2.9 ../wiki-todo-generator
 k3d image import todo-project:v2.9 todo-backend:v2.10 wiki-todo-generator:v2.9
-kubectl apply -f manifests/
-kubectl apply -f ../todo-backend/manifests/          # backend + Postgres
-kubectl apply -f ../wiki-todo-generator/manifests/   # hourly CronJob
+kubectl apply -k ../project/k3d   # frontend, backend + Postgres, CronJob, Ingresses
 # Open http://localhost:8081, add a todo and reload: it stays in the list
 kubectl get all,ingress,pvc -n project
 ```
@@ -74,7 +73,7 @@ On load the page calls `GET /api/todos` and renders the list; **Send** posts `{"
 The page shows a random image from `IMAGE_URL` (a 1200px image from [Lorem Picsum](https://picsum.photos/1200)), served by the app at `/image`:
 
 - The image and its download time are stored in `IMAGE_DIR`, `/usr/src/app/files` (`daily-image.jpg`, `image-timestamp.txt`).
-- The directory is a PersistentVolumeClaim (`todo-project-image-pvc`, k3s `local-path` storage class), so the cached image survives container crashes and pod restarts without calling the API again.
+- The directory is a PersistentVolumeClaim (`todo-project-image-pvc`, from the cluster's default storage class: `local-path` in k3d, an Azure Disk in AKS), so the cached image survives container crashes and pod restarts without calling the API again.
 - When the image is older than `IMAGE_REFRESH_INTERVAL` (10 minutes), the next request downloads a new one. Downloads go to a temporary file that is renamed into place, and a lock keeps concurrent requests from downloading at the same time.
 
 To test that the cache survives a crash, kill the container and check that the same image is still shown:
@@ -113,7 +112,7 @@ kubectl rollout restart deployment/todo-project-dep -n project
 - `manifests/deployment.yaml` - Deployment with `PORT` and `IMAGE_DIR`, env from the ConfigMaps, image cache volume at `/usr/src/app/files`
 - `manifests/configmap.yaml` - ConfigMap `todo-project-config` (image URL and interval, backend URL)
 - `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
-- `manifests/ingress.yaml` - Ingress routing `/` to the Service
+- `manifests/kustomization.yaml` - Kustomize base with the files above; the routing (Ingress in k3d, Gateway in AKS) is in [`../project`](../project)
 - `manifests/persistentvolumeclaim.yaml` - 100Mi claim for the image cache
 
 ## Technologies

@@ -1,0 +1,48 @@
+# Gateway API routing of the project in AKS (GatewayClass approuting-istio, see ../../terraform/gateway.tf).
+# The Gateway gets its own public IP, so every namespace that runs the project has its own address.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  namespace: project
+  name: project-gateway
+spec:
+  gatewayClassName: approuting-istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# /api goes to todo-backend without the /api prefix (the backend answers at /todos),
+# everything else to the frontend. The browser reaches both through the same address.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: project
+  name: project-route
+spec:
+  parentRefs:
+    - name: project-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: todo-backend-svc
+          port: 2345
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: todo-project-svc
+          port: 2345

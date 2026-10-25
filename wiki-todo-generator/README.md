@@ -27,7 +27,7 @@ The run ends when the todo is created; a failure exits with an error, and Kubern
 ```bash
 docker build -t wiki-todo-generator:v2.9 .
 k3d image import wiki-todo-generator:v2.9
-kubectl apply -f manifests/
+kubectl apply -k ../project/k3d   # deployed with the rest of the project (see ../project)
 kubectl get cronjob,jobs -n project
 
 # Run it now instead of waiting for the next hour
@@ -48,6 +48,7 @@ There are no defaults in the code; the job stops if a variable is missing.
 - `main.go` - Gets a random article and creates the todo
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24 with CA certificates)
 - `manifests/cronjob.yaml` - Hourly CronJob
+- `manifests/kustomization.yaml` - Kustomize base, part of [`../project`](../project)
 
 ## Technologies
 
