@@ -1,302 +1,56 @@
 # Wiki Todo Generator
 
-A scheduled job that fetches random Wikipedia articles and automatically creates todo items in the todo-backend service. Runs as a Kubernetes CronJob to add daily reading suggestions.
+A Kubernetes CronJob that adds a reading todo to the [todo project](../todo-project) every hour: `Read <URL>`, where the URL is a random Wikipedia article.
 
 ## Exercises
 
-This application fulfills the requirements for:
-- **Exercise 2.9:** Daily todos from Wikipedia API
-- **Exercise 2.10:** CronJob for scheduled Wikipedia todo fetcher
+- **2.9:** CronJob that creates a `Read <URL>` todo with a random Wikipedia article every hour
 
-## Features
+## How it works
 
-- Fetches random Wikipedia articles using the Wikipedia API
-- Creates todos with format: "Read https://en.wikipedia.org/wiki/[Article_Title]"
-- Runs on a schedule (hourly by default)
-- Proper User-Agent header for Wikipedia API compliance
-- Integrates with todo-backend REST API
-- Automatic error handling and retry logic (via Kubernetes)
+1. `GET https://en.wikipedia.org/wiki/Special:Random` without following the redirect. Wikipedia answers `302 Found` with the random article in the `Location` header, as a protocol-relative address (`//en.wikipedia.org/wiki/Furfjord`) that is resolved to `https://`.
+2. The title is decoded for reading (`Äänekoski` instead of `%C3%84%C3%A4nekoski`), unless decoding would bring back `?`, `#`, `%` or a space, which would change the URL when pasted.
+3. If `Read <URL>` is longer than `TODO_MAX_LENGTH`, the job tries another article (up to five), since todo-backend would refuse it.
+4. `POST http://todo-backend-svc:2345/todos` with `{"text": "Read <URL>"}`. The job runs inside the cluster, so it calls the backend's Service directly, not through the Ingress.
 
-## How It Works
+The run ends when the todo is created; a failure exits with an error, and Kubernetes retries the run.
 
-1. Queries Wikipedia API for a random article
-2. Extracts the article title
-3. Constructs a Wikipedia URL
-4. Posts a new todo to the todo-backend service
-5. Exits (Kubernetes CronJob will schedule the next run)
+## CronJob
 
-## Running Locally
+`manifests/cronjob.yaml` in the namespace `project`:
 
-### Using Docker
-
-Build the image:
-```bash
-docker build -t wiki-todo-generator:v1.0 .
-```
-
-Run manually (requires todo-backend to be running):
-```bash
-docker run \
-  -e BACKEND_URL="http://localhost:3000/todos" \
-  wiki-todo-generator:v1.0
-```
-
-Expected output:
-```
-Random Wikipedia article: https://en.wikipedia.org/wiki/Atlantic_Ocean
-Successfully created todo: Read https://en.wikipedia.org/wiki/Atlantic_Ocean
-```
-
-### Using Go
+- `schedule: "0 * * * *"` - every hour at minute 0
+- `concurrencyPolicy: Forbid` - a new run is skipped while the previous one is still going
+- `backoffLimit: 3` with `restartPolicy: Never` - a failed run is retried up to three times in new pods
+- The last three successful and three failed Jobs are kept, so their logs can still be read
 
 ```bash
-# Set the backend URL
-export BACKEND_URL="http://localhost:3000/todos"
+docker build -t wiki-todo-generator:v2.9 .
+k3d image import wiki-todo-generator:v2.9
+kubectl apply -f manifests/
+kubectl get cronjob,jobs -n project
 
-# Run directly
-go run main.go
-```
-
-## Deploying to Kubernetes
-
-### Local Deployment (k3d)
-
-#### Prerequisites
-- k3d cluster running
-- kubectl configured
-- todo-backend service deployed and accessible
-
-#### Import image to k3d
-```bash
-k3d image import wiki-todo-generator:v1.0 -c k3s-default
-```
-
-#### Deploy CronJob
-```bash
-kubectl apply -f manifests/cronjob.yaml
-```
-
-#### Check CronJob status
-```bash
-# View CronJob details
-kubectl get cronjobs -n project
-
-# List jobs created by the CronJob
-kubectl get jobs -n project
-
-# View logs from the most recent run
-kubectl logs -n project -l job-name=wiki-todo-generator-<timestamp>
-```
-
-#### Manually trigger a job (for testing)
-```bash
-kubectl create job -n project --from=cronjob/wiki-todo-generator wiki-todo-test
-kubectl logs -n project -l job-name=wiki-todo-test -f
-```
-
-#### Delete CronJob
-```bash
-kubectl delete -f manifests/cronjob.yaml
-```
-
-### Cloud Deployment (Azure AKS)
-
-#### Prerequisites
-- Azure CLI installed and authenticated (`az login`)
-- AKS cluster created (see [terraform/README.md](../terraform/README.md))
-- kubectl configured for AKS (`az aks get-credentials`)
-- Azure Container Registry (ACR) access
-- todo-backend service deployed in AKS
-
-#### Build and Push to ACR
-```bash
-# Get ACR name from Terraform output
-ACR_NAME=$(cd ../terraform/bootstrap && terraform output -raw acr_name)
-
-# Login to ACR
-az acr login --name $ACR_NAME
-
-# Build and tag image
-docker build -t wiki-todo-generator:v1.0 .
-docker tag wiki-todo-generator:v1.0 $ACR_NAME.azurecr.io/wiki-todo-generator:v1.0
-
-# Push to ACR
-docker push $ACR_NAME.azurecr.io/wiki-todo-generator:v1.0
-```
-
-#### Update manifests for AKS
-Update the image reference in `manifests/cronjob.yaml`:
-```yaml
-spec:
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: wiki-todo-generator
-              image: <acr-name>.azurecr.io/wiki-todo-generator:v1.0
-```
-
-#### Deploy to AKS
-```bash
-kubectl apply -f manifests/cronjob.yaml
-```
-
-#### Check CronJob in AKS
-```bash
-# View CronJob details
-kubectl get cronjobs -n project
-
-# List jobs
-kubectl get jobs -n project
-
-# View logs from the most recent run
-kubectl logs -n project -l job-name=wiki-todo-generator-<timestamp>
-```
-
-#### Manually trigger a job in AKS (for testing)
-```bash
-kubectl create job -n project --from=cronjob/wiki-todo-generator wiki-todo-test-aks
-kubectl logs -n project -l job-name=wiki-todo-test-aks -f
-```
-
-#### Delete CronJob from AKS
-```bash
-kubectl delete -f manifests/cronjob.yaml
+# Run it now instead of waiting for the next hour
+kubectl create job -n project --from=cronjob/wiki-todo-generator wiki-manual
+kubectl logs -n project job/wiki-manual   # Created todo: Read https://en.wikipedia.org/wiki/...
 ```
 
 ## Configuration
 
-The application uses the following environment variables:
+There are no defaults in the code; the job stops if a variable is missing.
 
-- `BACKEND_URL` - URL of the todo-backend service (default: http://todo-backend-svc:2345/todos)
-
-### CronJob Schedule
-
-The default schedule is `"0 * * * *"` which runs every hour at minute 0 (e.g., 1:00, 2:00, 3:00).
-
-You can customize the schedule in the CronJob manifest:
-```yaml
-spec:
-  schedule: "0 * * * *"  # Every hour
-  # schedule: "0 9 * * *"  # Daily at 9:00 AM
-  # schedule: "*/30 * * * *"  # Every 30 minutes
-  # schedule: "0 0 * * 0"  # Weekly on Sunday at midnight
-```
-
-## Wikipedia API Integration
-
-The application uses the Wikipedia REST API with the following endpoint:
-```
-https://en.wikipedia.org/w/api.php?action=query&format=json&list=random&rnnamespace=0&rnlimit=1
-```
-
-**API Response Example:**
-```json
-{
-  "query": {
-    "random": [
-      {
-        "id": 12345,
-        "title": "Atlantic Ocean"
-      }
-    ]
-  }
-}
-```
-
-**Important:** The application sets a proper User-Agent header as required by Wikipedia's API guidelines:
-```
-User-Agent: WikiTodoGenerator/1.0 (Kubernetes CronJob)
-```
-
-## Integration with Todo-Backend
-
-The generator creates todos by sending POST requests to the todo-backend service:
-
-**Request:**
-```json
-{
-  "text": "Read https://en.wikipedia.org/wiki/Atlantic_Ocean"
-}
-```
-
-The backend validates the text (must be ≤140 characters) and creates the todo.
+- `RANDOM_ARTICLE_URL` - `https://en.wikipedia.org/wiki/Special:Random`, in the CronJob
+- `TODOS_URL` - `http://todo-backend-svc:2345/todos`, in the CronJob
+- `TODO_MAX_LENGTH` - from the ConfigMap `todo-backend-config`, the same limit todo-backend checks
 
 ## Files
 
-- `main.go` - Main application code with Wikipedia API and todo-backend integration
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/cronjob.yaml` - Kubernetes CronJob configuration
+- `main.go` - Gets a random article and creates the todo
+- `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24 with CA certificates)
+- `manifests/cronjob.yaml` - Hourly CronJob
 
 ## Technologies
 
-- **Language:** Go 1.27
+- **Language:** Go 1.27 (standard library only)
 - **Container:** Docker (multi-stage build with Alpine Linux)
 - **Orchestration:** Kubernetes CronJob
-- **External API:** Wikipedia REST API
-
-## Error Handling
-
-The application exits with a non-zero status code on errors:
-- Wikipedia API unavailable
-- Invalid API response
-- Todo-backend unavailable
-- Todo creation failed
-
-Kubernetes will retry failed jobs according to the `restartPolicy: OnFailure` setting.
-
-## Monitoring CronJob Execution
-
-### View CronJob History
-```bash
-# See recent job executions
-kubectl get jobs -n project -l app=wiki-todo-generator
-
-# View logs from all job runs
-kubectl logs -n project -l app=wiki-todo-generator --tail=50
-```
-
-### Check for Failed Jobs
-```bash
-# List failed jobs
-kubectl get jobs -n project --field-selector status.successful=0
-
-# Describe a specific job for error details
-kubectl describe job -n project <job-name>
-```
-
-## Example Todo Items Created
-
-The CronJob creates todos like:
-- "Read https://en.wikipedia.org/wiki/Atlantic_Ocean"
-- "Read https://en.wikipedia.org/wiki/Machine_Learning"
-- "Read https://en.wikipedia.org/wiki/Solar_System"
-- "Read https://en.wikipedia.org/wiki/Ancient_Rome"
-
-Each todo is unique and educational, providing daily learning opportunities!
-
-## Testing Tips
-
-1. **Test the Wikipedia API integration:**
-   ```bash
-   curl "https://en.wikipedia.org/w/api.php?action=query&format=json&list=random&rnnamespace=0&rnlimit=1"
-   ```
-
-2. **Verify todo-backend connectivity:**
-   ```bash
-   kubectl port-forward -n project svc/todo-backend-svc 2345:2345
-   curl http://localhost:2345/todos
-   ```
-
-3. **Manually trigger and watch:**
-   ```bash
-   kubectl create job -n project --from=cronjob/wiki-todo-generator manual-test
-   kubectl logs -n project -l job-name=manual-test -f
-   ```
-
-4. **Check generated todos:**
-   ```bash
-   curl http://localhost:8081/api/todos | jq '.[] | select(.text | startswith("Read https://en.wikipedia.org"))'
-   ```

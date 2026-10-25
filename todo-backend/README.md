@@ -1,322 +1,140 @@
-# Todo Backend Application
+# Todo Backend
 
-A RESTful API backend service built with Go and PostgreSQL that manages todo items. This service provides CRUD operations for todos with persistent storage.
+REST API that stores the todos of the [todo project](../todo-project). The todos are stored in a PostgreSQL database that runs as a StatefulSet, so they survive restarts of both the backend and the database.
 
 ## Exercises
 
-This application fulfills the requirements for:
-- **Exercise 2.2:** REST API service with GET/POST endpoints for todos
-- **Exercise 2.4:** Move to "project" namespace
-- **Exercise 2.8:** PostgreSQL StatefulSet for todo persistence with Kubernetes Secrets
+- **2.2:** `GET /todos` lists the todos, `POST /todos` creates one
+- **2.4:** Runs in the namespace `project` with the todo project
+- **2.6:** Port and maximum todo length come from env variables (Deployment and ConfigMap)
+- **2.8:** Todos are saved in Postgres, run as a StatefulSet with one replica; the backend reaches it through a ConfigMap and a Secret
+- **2.10:** Request logging as JSON lines, including every created and every rejected todo, searchable in Grafana
 
-## Features
+## API
 
-- RESTful API for todo management
-- PostgreSQL database integration for persistent storage
-- CORS enabled for frontend integration
-- UUID-based todo IDs
-- 140-character limit validation
-- Health check endpoint
-- Automatic database schema initialization
-- Secure credential management with Kubernetes Secrets
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `GET` | `/todos` | | `200` with a JSON array of todos |
+| `POST` | `/todos` | `{"text": "Buy milk"}` | `201` with the new todo; `400` if the text is empty or over `TODO_MAX_LENGTH` (140) characters |
+| `GET` | `/healthz` | | `200 OK` |
 
-## API Endpoints
+A todo looks like this:
 
-### GET /todos
-Retrieves all todos, ordered by creation date (newest first).
-
-**Response:**
 ```json
-[
-  {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "text": "Buy groceries",
-    "done": false,
-    "created_at": "2025-12-10T10:30:00Z"
-  }
-]
+{"id": "6f1c…", "text": "Buy milk", "done": false, "created_at": "2026-10-25T18:40:00Z"}
 ```
 
-### POST /todos
-Creates a new todo item.
+The text is trimmed, and the limit counts characters, not bytes.
 
-**Request:**
-```json
-{
-  "text": "Buy groceries"
-}
-```
+## Running locally
 
-**Response:** (201 Created)
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "text": "Buy groceries",
-  "done": false,
-  "created_at": "2025-12-10T10:30:00Z"
-}
-```
-
-**Validations:**
-- Text is required (400 Bad Request)
-- Maximum 140 characters (400 Bad Request)
-
-### GET /healthz
-Health check endpoint for liveness/readiness probes.
-
-**Response:** (200 OK)
-```
-OK
-```
-
-## Running Locally
-
-### Using Docker
-
-Build the image:
 ```bash
+docker network create todo
+docker run -d --name postgres --network todo -e POSTGRES_USER=todo -e POSTGRES_DB=todos \
+  -e POSTGRES_PASSWORD=local postgres:18.6-alpine3.24
 docker build -t todo-backend:v2.10 .
-```
-
-Run with PostgreSQL:
-```bash
-# Start PostgreSQL
-docker run -d --name postgres-todos \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=example \
-  -e POSTGRES_DB=todos \
-  -p 5432:5432 \
-  postgres:13.0
-
-# Run todo-backend
-docker run -p 3000:3000 \
-  -e POSTGRES_URL="postgres://postgres:example@host.docker.internal:5432/todos?sslmode=disable" \
+docker run -p 3000:3000 --network todo -e PORT=3000 -e TODO_MAX_LENGTH=140 \
+  -e PGHOST=postgres -e PGPORT=5432 -e PGDATABASE=todos -e PGUSER=todo -e PGPASSWORD=local -e PGSSLMODE=disable \
   todo-backend:v2.10
-```
-
-Test the API:
-```bash
-# Get all todos
-curl http://localhost:3000/todos
-
-# Create a todo
-curl -X POST http://localhost:3000/todos \
-  -H "Content-Type: application/json" \
-  -d '{"text":"Buy groceries"}'
-
-# Health check
-curl http://localhost:3000/healthz
-```
-
-## Deploying to Kubernetes
-
-### Local Deployment (k3d)
-
-#### Prerequisites
-- k3d cluster running
-- kubectl configured
-- PostgreSQL StatefulSet deployed
-
-#### Deploy PostgreSQL StatefulSet
-```bash
-kubectl apply -f manifests/secret.yaml
-kubectl apply -f manifests/statefulset.yaml
-```
-
-Wait for PostgreSQL to be ready:
-```bash
-kubectl wait --for=condition=ready pod -l app=postgres-todos -n project --timeout=300s
-```
-
-#### Import image to k3d
-```bash
-k3d image import todo-backend:v2.10 -c k3s-default
-```
-
-#### Deploy Todo Backend Application
-```bash
-kubectl apply -f manifests/deployment.yaml
-kubectl apply -f manifests/service.yaml
-kubectl apply -f manifests/ingress.yaml
-kubectl apply -f manifests/middleware.yaml
-```
-
-#### Check deployment
-```bash
-kubectl get deployments -n project
-kubectl get pods -n project
-kubectl get services -n project
-```
-
-#### View logs
-```bash
-kubectl logs -f deployment/todo-backend-dep -n project
-```
-
-#### Test the application
-If using Ingress with path prefix stripping:
-```bash
-# Get all todos
-curl http://localhost:8081/api/todos
-
-# Create a todo
-curl -X POST http://localhost:8081/api/todos \
-  -H "Content-Type: application/json" \
-  -d '{"text":"Deploy to Kubernetes"}'
-```
-
-Or using port-forward:
-```bash
-kubectl port-forward -n project deployment/todo-backend-dep 3000:3000
+curl -X POST -H 'Content-Type: application/json' -d '{"text":"Buy milk"}' http://localhost:3000/todos
 curl http://localhost:3000/todos
 ```
 
-#### Delete deployment
+## Deploying to Kubernetes (k3d)
+
+Deploy together with the todo project (see [its README](../todo-project/README.md#deploying-to-kubernetes-k3d)):
+
 ```bash
-kubectl delete -f manifests/deployment.yaml
-kubectl delete -f manifests/service.yaml
-kubectl delete -f manifests/ingress.yaml
-kubectl delete -f manifests/middleware.yaml
-kubectl delete -f manifests/statefulset.yaml
-kubectl delete -f manifests/secret.yaml
-```
-
-### Cloud Deployment (Azure AKS)
-
-#### Prerequisites
-- Azure CLI installed and authenticated (`az login`)
-- AKS cluster created (see [terraform/README.md](../terraform/README.md))
-- kubectl configured for AKS (`az aks get-credentials`)
-- Azure Container Registry (ACR) access
-
-#### Build and Push to ACR
-```bash
-# Get ACR name from Terraform output
-ACR_NAME=$(cd ../terraform/bootstrap && terraform output -raw acr_name)
-
-# Login to ACR
-az acr login --name $ACR_NAME
-
-# Build and tag image
+kubectl apply -f ../manifests/project-namespace.yaml
+sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
 docker build -t todo-backend:v2.10 .
-docker tag todo-backend:v2.10 $ACR_NAME.azurecr.io/todo-backend:v2.10
-
-# Push to ACR
-docker push $ACR_NAME.azurecr.io/todo-backend:v2.10
+k3d image import todo-backend:v2.10
+kubectl apply -f manifests/                                            # backend + Postgres StatefulSet
+curl http://localhost:8081/api/todos
 ```
 
-#### Update manifests for AKS
-Update the image reference in `manifests/deployment.yaml`:
-```yaml
-spec:
-  containers:
-    - name: todo-backend
-      image: <acr-name>.azurecr.io/todo-backend:v2.10
+Traffic flow: `localhost:8081/api/todos` → Traefik Ingress `todo-backend-ingress` (`/api`) → Traefik Middleware `strip-api` removes `/api` → ClusterIP Service `todo-backend-svc:2345` → pod port `3000` → `/todos`.
+
+The Ingress refers to the Middleware as `project-strip-api@kubernetescrd` (`<namespace>-<name>`), so the annotation has to change whenever the namespace does.
+
+## Logging
+
+The backend logs JSON lines to stdout with Go's `log/slog`, so that Loki can parse the fields (LogQL `| json`):
+
+- every request: `msg="request"` with `method`, `path`, `status`, `duration_ms`, `remote_addr` and `user_agent` (successful `/healthz` calls are left out)
+- every new todo: `msg="todo created"` with `id`, `length` and `text`
+- every refused todo: `msg="todo rejected"`, level `WARN`, with `reason` (`too_long`, `empty` or `invalid_body`), `length`, `max_length` and `text`
+
+```
+{"level":"WARN","msg":"todo rejected","reason":"too_long","length":162,"max_length":140,"text":"This todo is far too long ..."}
+{"level":"INFO","msg":"request","method":"POST","path":"/todos","status":400,"duration_ms":0,...}
 ```
 
-#### Deploy to AKS
+To test the 140 character limit and find the refused todo in Grafana (see [`../monitoring`](../monitoring)):
+
 ```bash
-# Deploy secrets and PostgreSQL
-kubectl apply -f manifests/secret.yaml
-kubectl apply -f manifests/statefulset.yaml
-
-# Wait for PostgreSQL
-kubectl wait --for=condition=ready pod -l app=postgres-todos -n project --timeout=300s
-
-# Deploy application
-kubectl apply -f manifests/deployment.yaml
-kubectl apply -f manifests/service.yaml
+curl -i -H 'Content-Type: application/json' \
+  -d "{\"text\":\"$(printf 'x%.0s' {1..141})\"}" http://localhost:8081/api/todos   # 400 Bad Request
+kubectl logs -n project deployment/todo-backend-dep | grep 'todo rejected'
+# Grafana Explore, Loki: {namespace="project", container="todo-backend"} |= "todo rejected"
 ```
 
-**Note:** For AKS, you may want to use LoadBalancer or configure Azure Ingress Controller for production deployments.
+## Database
 
-#### Check AKS deployment
-```bash
-kubectl get deployments -n project
-kubectl get pods -n project
-kubectl get services -n project
-```
+`manifests/statefulset.yaml` runs Postgres (`postgres:18.6-alpine3.24`) as the StatefulSet `postgres-ss` with one replica and the headless Service `postgres-svc`, the same way as the [ping-pong database](../ping-pong/README.md#database) in the `exercises` namespace. The two databases are separate: same names, different namespaces.
 
-#### View logs in AKS
-```bash
-kubectl logs -f deployment/todo-backend-dep -n project
-```
+- The pod `postgres-ss-0` gets its own PersistentVolumeClaim `data-postgres-ss-0` from `volumeClaimTemplates` (k3s `local-path`), mounted at `/var/lib/postgresql` as Postgres 18 expects.
+- The backend creates the table `todos` at startup. The database fills in `id` (`gen_random_uuid()`), `done` and `created_at`, and `INSERT ... RETURNING` gives the new row back. The text is passed as a query parameter, never put into the SQL.
+- The backend retries the connection for a minute at startup, since the headless Service only resolves once Postgres is ready. `GET /healthz` answers `503` if the database is not reachable.
 
-#### Delete AKS deployment
+How the backend reaches the database, without any connection string in the code:
+
+| Setting | Where | Used by |
+|---|---|---|
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` | ConfigMap `todo-backend-config` | the backend (pgx reads the standard `PG*` variables); Postgres creates `POSTGRES_USER` and `POSTGRES_DB` from the same keys |
+| `POSTGRES_PASSWORD` | Secret `postgres-secret`, encrypted with SOPS in `secrets/postgres-secret.enc.yaml` | Postgres, and the backend as `PGPASSWORD` |
+
+The Secret is encrypted for the age key in [`../.sops.yaml`](../.sops.yaml); see the [ping-pong README](../ping-pong/README.md#database-password) for how SOPS is set up and how to make your own key and password.
+
+To look at the todos in the database:
+
 ```bash
-kubectl delete -f manifests/deployment.yaml
-kubectl delete -f manifests/service.yaml
-kubectl delete -f manifests/statefulset.yaml
-kubectl delete -f manifests/secret.yaml
+kubectl run psql-debug -n project --rm -it --restart=Never --image postgres:18.6-alpine3.24 \
+  --overrides='{"spec":{"containers":[{"name":"psql-debug","image":"postgres:18.6-alpine3.24","stdin":true,"tty":true,"command":["psql"],"envFrom":[{"configMapRef":{"name":"todo-backend-config"}}],"env":[{"name":"PGPASSWORD","valueFrom":{"secretKeyRef":{"name":"postgres-secret","key":"POSTGRES_PASSWORD"}}}]}]}}'
+todos=# SELECT * FROM todos;
 ```
 
 ## Configuration
 
-The application uses the following environment variables:
+There are no defaults in the code; the app stops at startup if a variable is missing.
 
-- `PORT` - The port number the server listens on (default: 3000)
-- `POSTGRES_URL` - PostgreSQL connection string (stored in Kubernetes Secret)
+- `PORT` - HTTP server port, `3000` in `manifests/deployment.yaml`
+- `TODO_MAX_LENGTH` - maximum todo length in characters, `140` in the ConfigMap `todo-backend-config`. The [todo project](../todo-project) reads the same key for its input, so the limit is changed in one place:
 
-## Database Schema
-
-The application automatically creates the following table:
-
-```sql
-CREATE TABLE IF NOT EXISTS todos (
-    id TEXT PRIMARY KEY,
-    text TEXT NOT NULL,
-    done BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
+```bash
+kubectl edit configmap todo-backend-config -n project
+kubectl rollout restart deployment/todo-backend-dep deployment/todo-project-dep -n project
 ```
+
+- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` - database connection, in the ConfigMap `todo-backend-config`
+- `PGPASSWORD` - database password, from the Secret `postgres-secret`
 
 ## Files
 
-- `main.go` - Main application code with REST API and database integration
-- `go.mod` - Go module definition
-- `Dockerfile` - Multi-stage Docker build
-- `manifests/deployment.yaml` - Kubernetes deployment in "project" namespace
-- `manifests/service.yaml` - ClusterIP service
-- `manifests/ingress.yaml` - Ingress configuration for /api path
-- `manifests/middleware.yaml` - Traefik middleware to strip /api prefix
-- `manifests/secret.yaml` - Kubernetes Secret for database credentials
-- `manifests/statefulset.yaml` - PostgreSQL StatefulSet with persistent storage
+- `main.go` - HTTP API with the todos in Postgres
+- `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
+- `manifests/deployment.yaml` - Deployment with `PORT=3000` and env from the ConfigMap
+- `manifests/configmap.yaml` - ConfigMap `todo-backend-config` with `TODO_MAX_LENGTH` and the database connection
+- `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`
+- `secrets/postgres-secret.enc.yaml` - SOPS-encrypted Secret with the database password
+- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
+- `manifests/ingress.yaml` - Ingress routing `/api` to the Service through the Middleware
+- `manifests/middleware.yaml` - Traefik Middleware that strips the `/api` prefix
 
 ## Technologies
 
-- **Language:** Go 1.27
-- **Database:** PostgreSQL 13.0
+- **Language:** Go 1.27, [pgx](https://github.com/jackc/pgx) v5
+- **Database:** PostgreSQL 18
 - **Container:** Docker (multi-stage build with Alpine Linux)
-- **Orchestration:** Kubernetes
-- **Storage:** StatefulSet with PersistentVolumeClaim
-- **Security:** Kubernetes Secrets for sensitive data
-
-## Integration with Todo-Project
-
-The todo-backend service provides the REST API consumed by the todo-project frontend. The frontend sends requests to `/api/todos`, which are routed through the Ingress with path prefix stripping middleware to this backend service.
-
-## Security Best Practices
-
-- Database credentials stored in Kubernetes Secrets (not hard-coded)
-- Secrets referenced via `secretKeyRef` in deployment
-- CORS configured for controlled access
-- Input validation (length limits, required fields)
-- SQL injection protection via parameterized queries
-
-## Request Logging
-
-The application logs all incoming requests with the following information:
-- HTTP method and path
-- Remote address
-- Request validation results
-- Todo creation success/failure
-- Database operation results
-
-Example log output:
-```
-Todo-backend server started on port 3000
-Database connected: postgres://postgres:***@postgres-svc:5432/todos?sslmode=disable
-POST /todos - Request from 10.42.0.1:52134
-POST /todos - Received todo text (length: 15): Buy groceries
-POST /todos - SUCCESS: Created todo 123e4567-e89b-12d3-a456-426614174000 - Buy groceries
-```
+- **Orchestration:** Kubernetes, Traefik Ingress and Middleware (k3s default)
+- **Monitoring:** Loki and Grafana (see [`../monitoring`](../monitoring))

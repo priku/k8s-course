@@ -16,6 +16,4 @@ WORKDIR /app
 
 COPY --from=builder /app/todo-project .
 
-ENV PORT=3000
-
 CMD ["./todo-project"]

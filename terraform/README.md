@@ -1,396 +1,94 @@
-# Azure Infrastructure for DevOps with Kubernetes
+# Azure infrastructure (Chapter 4)
 
-This directory contains Terraform configuration for deploying Azure Kubernetes Service (AKS) and Azure Container Registry (ACR) using **Azure Verified Modules (AVM)**.
+The course material uses Google Kubernetes Engine in Chapter 4, and also allows other cloud providers. These exercises run on **Azure Kubernetes Service (AKS)** instead. This Terraform configuration creates the infrastructure in the existing resource group `rg-dwk-aks-sc` (Sweden Central).
 
-> **Note:** This course uses Azure AKS instead of GKE as suggested in the original course material.
+| Resource | Name | Notes |
+|---|---|---|
+| AKS cluster | `aks-dwk-sc` | Kubernetes 1.37, Free tier, 2 × `Standard_D2as_v7` (2 vCPU, 8 GiB), Azure CNI Overlay |
+| Node resource group | `rg-dwk-aks-nodes-sc` | Created by AKS for the VMs, disks, load balancer and public IPs |
+| Container registry | `acrdwkakssc.azurecr.io` | Basic SKU, no admin user; the nodes pull with their kubelet identity (`AcrPull`) |
+| Logic App | `logic-aks-dwk-sc-nightly-stop` | Stops the cluster every night at 23:59 Finnish time |
+| Gateway API | GatewayClass `approuting-istio` | AKS-managed Gateway API CRDs and the application routing Gateway API implementation (`gateway.tf`, exercise 3.3) |
 
-## Table of Contents
+Sign-in to the cluster goes through Entra ID with Azure RBAC (`local_account_disabled`), so there are no static admin credentials. The user who runs Terraform gets `Azure Kubernetes Service RBAC Cluster Admin` on the cluster and `AcrPush` on the registry.
 
-- [Architecture](#architecture)
-- [AKS Infrastructure](#aks-infrastructure)
-- [Usage](#usage)
-- [Pushing Images to ACR](#pushing-images-to-acr)
-- [Configuration Variables](#configuration-variables)
-- [Outputs](#outputs)
-- [Azure AI Services (Optional)](#azure-ai-services-optional)
-- [Cost Management](#cost-management)
-- [Clean Up](#clean-up)
-- [Troubleshooting](#troubleshooting)
+## GKE in the material vs. AKS here
 
----
+| Course material (GKE) | Here (AKS) |
+|---|---|
+| `gcloud container clusters create` | `terraform apply` in this directory |
+| `gcloud container clusters get-credentials` | `az aks get-credentials` + `kubelogin` |
+| Google Artifact Registry | Azure Container Registry, images built with `az acr build` |
+| Persistent disk from the default storage class | Azure Disk from the default storage class `default` |
+| `Service` of type `LoadBalancer` | The same; AKS adds a rule and a public IP to the cluster's Azure Load Balancer |
+| GKE Ingress (Google L7 load balancer) | Traefik installed with Helm (exercise 3.2); AKS's managed NGINX is being retired |
+| `gcloud container clusters update --gateway-api=standard`, GatewayClass `gke-l7-global-external-managed` | `gateway.tf` (azapi), GatewayClass `approuting-istio`: an Envoy proxy in the cluster behind an Azure Load Balancer IP |
+| Delete the cluster to save credits | Stop it: `az aks stop` (nightly automatically), `az aks start` when needed |
 
-## Architecture
+## One-time setup
 
+These were created once with the Azure CLI, outside Terraform, so that `terraform destroy` never removes the budget or the Terraform state:
+
+```bash
+# Resource group for everything of the course
+az group create --name rg-dwk-aks-sc --location swedencentral \
+  --tags project=dwk-k8s-course purpose=course owner=priku
+
+# Budget: 30 EUR/month for rg-dwk-aks-sc and the node group rg-dwk-aks-nodes-sc,
+# alerts at 50/80/100 % actual and 100 % forecast (created with az rest, Microsoft.Consumption/budgets)
+
+# Terraform state in Azure Storage, read with Entra ID (shared keys disabled)
+az storage account create --resource-group rg-dwk-aks-sc --name stdwkakstfstatesc \
+  --location swedencentral --sku Standard_LRS --min-tls-version TLS1_2 \
+  --allow-blob-public-access false --allow-shared-key-access false
+az role assignment create --assignee-object-id "$(az ad signed-in-user show --query id -o tsv)" \
+  --assignee-principal-type User --role "Storage Blob Data Contributor" \
+  --scope "$(az storage account show -g rg-dwk-aks-sc -n stdwkakstfstatesc --query id -o tsv)"
+az storage container create --name tfstate --account-name stdwkakstfstatesc --auth-mode login
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 Azure (Sweden Central)                       │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              Resource Group: dwk-aks-rg              │   │
-│  │                                                      │   │
-│  │  ┌─────────────────┐    ┌─────────────────────────┐ │   │
-│  │  │  Azure Container │    │   Azure Kubernetes     │ │   │
-│  │  │  Registry (ACR)  │◄───│   Service (AKS)        │ │   │
-│  │  │  Basic SKU       │    │   2× Standard_B2s      │ │   │
-│  │  └─────────────────┘    │   Azure CNI            │ │   │
-│  │                          │   Azure AD RBAC        │ │   │
-│  │                          └─────────────────────────┘ │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │         Azure AI Services (Optional/Future)          │   │
-│  │  ┌─────────┐  ┌──────────┐  ┌─────────────────────┐ │   │
-│  │  │ OpenAI  │  │ Language │  │  Computer Vision    │ │   │
-│  │  │ GPT-4   │  │ Service  │  │  OCR, Analysis      │ │   │
-│  │  └─────────┘  └──────────┘  └─────────────────────┘ │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
 
----
-
-## AKS Infrastructure
-
-### Resources Created
-
-| Resource | Name | Description |
-|----------|------|-------------|
-| Resource Group | `dwk-aks-rg` | Container for all resources |
-| AKS Cluster | `dwk-aks-cluster` | Managed Kubernetes cluster |
-| ACR | `dwkacr<random>` | Container registry for images |
-| Role Assignment | AcrPull | Allows AKS to pull images from ACR |
-
-### Azure Verified Modules
-
-This configuration uses [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) for best practices:
-
-- **AKS Module**: `Azure/avm-res-containerservice-managedcluster/azurerm` v0.3.3
-- **ACR Module**: `Azure/avm-res-containerregistry-registry/azurerm` v0.4.0
-
----
-
-## Prerequisites
-
-- [Terraform](https://www.terraform.io/downloads) >= 1.9
-- [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) >= 2.50
-- Azure subscription with sufficient permissions
-
----
-
-## Usage
-
-### 1. Login to Azure
+## Create the infrastructure
 
 ```bash
 az login
-az account set --subscription "<your-subscription-name>"
-```
-
-### 2. Initialize Terraform
-
-```bash
-cd terraform
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)   # the subscription is not in the code
 terraform init
-```
-
-### 3. Review the Plan
-
-```bash
 terraform plan -out=tfplan
-```
-
-### 4. Apply Infrastructure
-
-```bash
 terraform apply tfplan
-```
 
-This will take approximately **5-10 minutes**.
-
-### 5. Configure kubectl
-
-```bash
-# Get the command from Terraform output
-terraform output kube_config_command
-
-# Or run directly:
-az aks get-credentials --resource-group dwk-aks-rg --name dwk-aks-cluster --overwrite-existing
-```
-
-### 6. Verify Connection
-
-```bash
+# kubeconfig for the cluster; kubelogin uses the Azure CLI sign-in
+$(terraform output -raw get_credentials_command)
 kubectl get nodes
 ```
 
----
+Tools: Terraform 1.17, azurerm provider 5.11, azapi provider 2.13 (for the Gateway API settings that azurerm does not cover yet), Azure CLI 2.90, kubelogin 0.2.21.
 
-## Pushing Images to ACR
+## Stop and start
 
-```bash
-# Get ACR name
-ACR_NAME=$(terraform output -raw acr_name)
-
-# Login to ACR
-az acr login --name $ACR_NAME
-
-# Tag and push an image
-docker tag myapp:latest $ACR_NAME.azurecr.io/myapp:latest
-docker push $ACR_NAME.azurecr.io/myapp:latest
-```
-
----
-
-## CI/CD with GitHub Actions
-
-This project includes a GitHub Actions workflow for automated Terraform deployments.
-
-### Setup Steps
-
-#### 1. Bootstrap State Storage (One-time)
-
-First, create the Azure Storage Account for remote state:
+The cluster costs money only while its nodes run. A Logic App stops it every night at 23:59 Finnish time (`FLE Standard Time`, so daylight saving time is followed). Its managed identity has only the `Azure Kubernetes Service Contributor Role` on this cluster. Nothing starts the cluster automatically:
 
 ```bash
-cd terraform/bootstrap
-terraform init
-terraform apply
+az aks start --resource-group rg-dwk-aks-sc --name aks-dwk-sc   # about 5 minutes
+az aks stop  --resource-group rg-dwk-aks-sc --name aks-dwk-sc
+az aks show  --resource-group rg-dwk-aks-sc --name aks-dwk-sc --query powerState.code -o tsv
 ```
 
-Note the output values, then update `terraform/providers.tf` with the backend configuration.
+A stopped cluster keeps its configuration, Kubernetes objects and persistent disks, so nothing has to be applied again after `az aks start`.
 
-#### 2. Create Service Principal
+## Costs
+
+| Item | Price (Sweden Central) |
+|---|---|
+| 2 × `Standard_D2as_v7` | 0.085 EUR/h each, only while running |
+| Container registry Basic | about 0.15 EUR/day |
+| Public IPs, persistent disks, state storage | a few euros per month |
+| AKS control plane (Free tier) | free |
+
+Cheaper B-series sizes are out: the subscription has no quota for the Bsv2 family, and AKS does not allow the older B-series in Sweden Central. `Standard_D2als_v7` (4 GiB) would be about 10 % cheaper, but the Istio gateway of the later exercises and two Postgres databases need the memory of `D2as_v7`.
+
+## Remove
 
 ```bash
-# Create Service Principal with Contributor role
-az ad sp create-for-rbac \
-  --name "github-terraform-dwk" \
-  --role Contributor \
-  --scopes /subscriptions/3921f8c4-f431-4e3f-b001-fa10bf905e12 \
-  --sdk-auth
+terraform destroy                                  # cluster, registry, Logic App
+az group delete --name rg-dwk-aks-sc               # at the end of the course: state storage and the group
 ```
-
-Save the JSON output - you'll need it for GitHub secrets.
-
-#### 3. Configure GitHub Secrets
-
-Add these secrets to your GitHub repository (Settings → Secrets → Actions):
-
-| Secret | Value |
-|--------|-------|
-| `ARM_CLIENT_ID` | `appId` from SP output |
-| `ARM_CLIENT_SECRET` | `password` from SP output |
-| `ARM_SUBSCRIPTION_ID` | `3921f8c4-f431-4e3f-b001-fa10bf905e12` |
-| `ARM_TENANT_ID` | `tenant` from SP output |
-
-#### 4. Create GitHub Environment
-
-Create a `production` environment in GitHub (Settings → Environments) with:
-- Required reviewers (optional, for approval before apply)
-- Deployment branch: `main`
-
-#### 5. Migrate to Remote State
-
-After bootstrap, uncomment the backend block in `providers.tf`:
-
-```bash
-cd terraform
-terraform init -migrate-state
-```
-
-### Workflow Triggers
-
-| Trigger | Action |
-|---------|--------|
-| Push to `main` (terraform/* changes) | Plan + Apply |
-| PR to `main` (terraform/* changes) | Plan only (with PR comment) |
-| Manual dispatch | Plan, Apply, or Destroy |
-
-### Manual Runs
-
-Go to Actions → Terraform Azure Infrastructure → Run workflow:
-- **plan**: Preview changes
-- **apply**: Deploy infrastructure
-- **destroy**: Tear down infrastructure
-
----
-
-## Configuration Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `resource_group_name` | `dwk-aks-rg` | Name of the resource group |
-| `location` | `swedencentral` | Azure region |
-| `cluster_name` | `dwk-aks-cluster` | Name of the AKS cluster |
-| `node_count` | `2` | Number of nodes |
-| `vm_size` | `Standard_B2s_v2` | VM size for nodes (v2 available in Sweden Central) |
-
----
-
-## Outputs
-
-| Output | Description |
-|--------|-------------|
-| `resource_group_name` | Name of the created resource group |
-| `kubernetes_cluster_name` | Name of the AKS cluster |
-| `kube_config_command` | Command to get kubeconfig |
-| `acr_login_server` | ACR login server URL |
-| `acr_name` | ACR name |
-| `cluster_portal_url` | Azure Portal URL for cluster |
-| `acr_portal_url` | Azure Portal URL for ACR |
-
----
-
-## Azure AI Services (Optional)
-
-> **Note:** This section is for future AI-102 integration. Not required for the DevOps with Kubernetes course.
-
-### Quick Setup
-
-```bash
-# Set variables
-RESOURCE_GROUP="rg-todo-ai-app"
-LOCATION="eastus"
-
-# Create resource group for AI services
-az group create --name $RESOURCE_GROUP --location $LOCATION
-
-# Create Azure OpenAI
-OPENAI_NAME="openai-todo-app-$(date +%s)"
-az cognitiveservices account create \
-  --name $OPENAI_NAME \
-  --resource-group $RESOURCE_GROUP \
-  --kind OpenAI \
-  --sku S0 \
-  --location $LOCATION \
-  --yes
-
-# Deploy GPT-4 model
-az cognitiveservices account deployment create \
-  --name $OPENAI_NAME \
-  --resource-group $RESOURCE_GROUP \
-  --deployment-name gpt-4 \
-  --model-name gpt-4 \
-  --model-version "0613" \
-  --model-format OpenAI \
-  --sku-capacity 10 \
-  --sku-name "Standard"
-```
-
-### Available AI Services
-
-| Service | Use Case | Free Tier |
-|---------|----------|-----------|
-| Azure OpenAI | Smart todo parsing, AI assistant | No free tier |
-| Language Service | Sentiment analysis, key phrases | 5,000 records/month |
-| Computer Vision | OCR, image analysis | 5,000 transactions/month |
-| Speech Service | Voice input/output | 5 hours/month |
-
-### Create Kubernetes Secret for AI Services
-
-```bash
-cat > ai-secrets.yaml <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: azure-ai-secrets
-type: Opaque
-stringData:
-  AZURE_OPENAI_KEY: "<your-key>"
-  AZURE_OPENAI_ENDPOINT: "<your-endpoint>"
-  AZURE_OPENAI_DEPLOYMENT: "gpt-4"
-EOF
-
-kubectl apply -f ai-secrets.yaml
-```
-
----
-
-## Cost Management
-
-### AKS Infrastructure Costs
-
-| Resource | Estimated Monthly Cost |
-|----------|----------------------|
-| AKS (2× Standard_B2s) | ~$60-80 |
-| ACR (Basic) | ~$5 |
-| Load Balancer | ~$20 |
-| **Total** | **~$85-105/month** |
-
-### AI Services Costs (Optional)
-
-| Service | Usage | Cost |
-|---------|-------|------|
-| Azure OpenAI (GPT-4) | 100k tokens/day | ~$30/month |
-| Language Service | 5k requests/day | ~$8/month |
-| Computer Vision | 1k images/day | ~$5/month |
-
-### Cost Optimization Tips
-
-1. **Destroy when not in use**: `terraform destroy`
-2. **Use GPT-3.5-Turbo** instead of GPT-4 (10x cheaper)
-3. **Stay within free tiers** for Language/Vision services
-4. **Set budget alerts** in Azure Portal
-
-### Set Up Budget Alert
-
-```bash
-az consumption budget create \
-  --budget-name "k8s-course-budget" \
-  --amount 100 \
-  --time-grain Monthly \
-  --start-date $(date +%Y-%m-01) \
-  --end-date $(date -d "+1 year" +%Y-%m-01) \
-  --resource-group dwk-aks-rg
-```
-
----
-
-## Clean Up
-
-### Destroy AKS Infrastructure
-
-```bash
-cd terraform
-terraform destroy
-```
-
-### Delete AI Services (if created)
-
-```bash
-az group delete --name rg-todo-ai-app --yes --no-wait
-```
-
----
-
-## Troubleshooting
-
-### "subscription ID could not be determined"
-```bash
-az login
-az account set --subscription "<subscription-name>"
-```
-
-### "quota exceeded"
-Try a different region or request quota increase in Azure Portal.
-
-### Pods can't pull images from ACR
-```bash
-az aks check-acr --resource-group dwk-aks-rg --name dwk-aks-cluster --acr <acr-name>.azurecr.io
-```
-
-### "Deployment not available in region" (AI Services)
-```bash
-# List available regions for OpenAI
-az cognitiveservices account list-skus --kind OpenAI --query "[].locations" -o table
-```
-
----
-
-## Useful Links
-
-- [Azure Verified Modules](https://azure.github.io/Azure-Verified-Modules/)
-- [AKS Documentation](https://learn.microsoft.com/en-us/azure/aks/)
-- [Azure AI Services](https://learn.microsoft.com/en-us/azure/ai-services/)
-- [Terraform AzureRM Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
-- [AI-102 Certification](https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-engineer/)
