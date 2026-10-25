@@ -5,6 +5,11 @@ metadata:
   name: todo-project-dep
 spec:
   replicas: 1
+  # The image cache is a ReadWriteOnce volume, which only one node can mount. A rolling update
+  # starts the new pod before stopping the old one, and on another node it would wait for the
+  # disk forever, so stop the old pod first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: todo-project

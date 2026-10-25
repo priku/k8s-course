@@ -55,3 +55,15 @@ variable "tags" {
     owner   = "priku"
   }
 }
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose workflows may deploy"
+  type        = string
+  default     = "priku/k8s-course"
+}
+
+variable "github_environment" {
+  description = "GitHub environment that deploying jobs must use"
+  type        = string
+  default     = "aks"
+}
