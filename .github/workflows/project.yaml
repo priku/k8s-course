@@ -6,6 +6,9 @@ name: Deploy the project
 # named after the branch, so each branch has a separate environment.
 on:
   push:
+    # Branches only: without a branch filter, pushing an exercise tag would deploy it too
+    branches:
+      - '**'
     paths:
       - 'todo-project/**'
       - 'todo-backend/**'

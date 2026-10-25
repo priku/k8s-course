@@ -81,7 +81,7 @@ Every branch gets its own copy of the whole project: frontend, backend, its own 
 | `feature-x` | `feature-x` | `todo-project:feature-x-<sha>`, … |
 | `feature/Blue_Sky` | `feature-blue-sky` | … |
 
-The namespace is the branch name made valid for Kubernetes: lowercase, characters other than `a-z`, `0-9` and `-` replaced with `-`, at most 63 characters. A branch whose name would land in `project`, `default`, `exercises`, `monitoring` or a system namespace (`kube-*`, `aks-*`) is refused, so a branch cannot overwrite production or the cluster's own namespaces. The database Secret is applied with `yq` into the target namespace, and `kustomize edit set namespace` moves every resource of the project there.
+Only branch pushes deploy; pushing an exercise tag does not. The namespace is the branch name made valid for Kubernetes: lowercase, characters other than `a-z`, `0-9` and `-` replaced with `-`, at most 63 characters. A branch whose name would land in `project`, `default`, `exercises`, `monitoring` or a system namespace (`kube-*`, `aks-*`) is refused, so a branch cannot overwrite production or the cluster's own namespaces. The database Secret is applied with `yq` into the target namespace, and `kustomize edit set namespace` moves every resource of the project there.
 
 The address of each environment is in the summary of its workflow run, or:
 
@@ -93,7 +93,7 @@ kubectl get gateway project-gateway -n <namespace>
 
 [`.github/workflows/project-cleanup.yaml`](../.github/workflows/project-cleanup.yaml) runs when a branch is deleted and deletes the branch's namespace. That removes the whole environment: the apps, the Gateway with its public IP, and the claims, whose Azure Disks are deleted with them. It computes the namespace from the branch name the same way as the deployment, refuses `main` and the reserved namespaces, and starts the cluster first if it is stopped.
 
-GitHub runs workflows for branch delete events only from the default branch, so this workflow works once it is on `main`. For a branch that was deleted before that, run it by hand:
+GitHub runs workflows for branch delete events only from the default branch, so this workflow works once it is on `main`. It shares the concurrency group of the branch's deployment, so when a branch is deleted while its deployment still runs (as with `gh pr merge --delete-branch` right after a push), the deletion waits for the deployment to finish instead of racing it. For a branch that was deleted before that, run it by hand:
 
 ```bash
 gh workflow run project-cleanup.yaml -f branch=<deleted branch>
