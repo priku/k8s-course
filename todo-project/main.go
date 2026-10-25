@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,9 @@ const (
 	timestampFile = "image-timestamp.txt"
 	imageMaxAge   = 10 * time.Minute // Image refreshes every 10 minutes
 )
+
+// imageMu makes sure only one request at a time checks and refreshes the image
+var imageMu sync.Mutex
 
 func main() {
 	// Get port from environment variable, default to 3000
@@ -93,18 +97,27 @@ func fetchAndSaveImage() error {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Create image file
+	// Download to a temporary file and rename it into place, so a request
+	// never sees a half-written image
 	imagePath := getImagePath()
-	file, err := os.Create(imagePath)
+	tmpPath := imagePath + ".tmp"
+	file, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create image file: %w", err)
 	}
-	defer file.Close()
 
 	// Copy image data
 	_, err = io.Copy(file, resp.Body)
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
+		os.Remove(tmpPath)
 		return fmt.Errorf("failed to save image: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, imagePath); err != nil {
+		return fmt.Errorf("failed to replace image: %w", err)
 	}
 
 	// Save timestamp
@@ -119,6 +132,9 @@ func fetchAndSaveImage() error {
 }
 
 func ensureImage() {
+	imageMu.Lock()
+	defer imageMu.Unlock()
+
 	if shouldRefreshImage() {
 		if err := fetchAndSaveImage(); err != nil {
 			log.Printf("Error fetching image: %v", err)
@@ -336,27 +352,31 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        // Render todos in the UI
+        // Render todos in the UI. textContent keeps todo text from being parsed as HTML.
         function renderTodos(todos) {
             const todoList = document.getElementById('todoList');
+            todoList.replaceChildren();
 
             if (todos.length === 0) {
-                todoList.innerHTML = '<li>No todos yet. Create one above!</li>';
+                const empty = document.createElement('li');
+                empty.textContent = 'No todos yet. Create one above!';
+                todoList.append(empty);
                 return;
             }
 
-            todoList.innerHTML = todos.map(todo => {
-                const checked = todo.done ? 'checked' : '';
-                const completed = todo.done ? 'completed' : '';
-                const checkmark = todo.done ? '✓' : '';
+            for (const todo of todos) {
+                const checkbox = document.createElement('div');
+                checkbox.className = todo.done ? 'todo-checkbox checked' : 'todo-checkbox';
+                checkbox.textContent = todo.done ? '✓' : '';
 
-                return ` + "`" + `
-                    <li>
-                        <div class="todo-checkbox ${checked}">${checkmark}</div>
-                        <span class="todo-text ${completed}">${todo.text}</span>
-                    </li>
-                ` + "`" + `;
-            }).join('');
+                const text = document.createElement('span');
+                text.className = todo.done ? 'todo-text completed' : 'todo-text';
+                text.textContent = todo.text;
+
+                const li = document.createElement('li');
+                li.append(checkbox, text);
+                todoList.append(li);
+            }
         }
 
         function updateCharCount() {
