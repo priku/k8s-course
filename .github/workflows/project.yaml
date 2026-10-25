@@ -1,11 +1,11 @@
 name: Deploy the project
 
-# Exercise 3.6: every push to main that changes the project builds its images,
-# pushes them to the Azure Container Registry and deploys them to AKS with Kustomize.
+# Exercise 3.6: every push that changes the project builds its images, pushes them to the
+# Azure Container Registry and deploys them to AKS with Kustomize.
+# Exercise 3.7: main goes to the namespace `project`, every other branch to its own namespace
+# named after the branch, so each branch has a separate environment.
 on:
   push:
-    branches:
-      - main
     paths:
       - 'todo-project/**'
       - 'todo-backend/**'
@@ -26,7 +26,6 @@ env:
   RESOURCE_GROUP: rg-dwk-aks-sc
   CLUSTER: aks-dwk-sc
   REGISTRY: acrdwkakssc.azurecr.io
-  NAMESPACE: project
   KUSTOMIZE_VERSION: 5.8.3
   SOPS_VERSION: v3.13.3
 
@@ -56,8 +55,22 @@ jobs:
             az aks start -g "$RESOURCE_GROUP" -n "$CLUSTER"
           fi
 
-      - name: Form the image tag
-        run: echo "IMAGE_TAG=${GITHUB_REF_NAME}-${GITHUB_SHA}" >> "$GITHUB_ENV"
+      - name: Choose the namespace and the image tag
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            namespace=project
+          else
+            # A namespace name: lowercase letters, digits and dashes, at most 63 characters
+            namespace=$(echo "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//' | cut -c1-63 | sed -E 's/-+$//')
+            case "$namespace" in
+              ""|project|default|exercises|monitoring|traefik|kube-*|aks-*|gatekeeper-*)
+                echo "::error::Branch '$GITHUB_REF_NAME' would deploy to the reserved namespace '$namespace'"
+                exit 1 ;;
+            esac
+          fi
+          echo "NAMESPACE=$namespace" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=$namespace-$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "Branch $GITHUB_REF_NAME → namespace $namespace"
 
       - name: Build and publish the images
         run: |
@@ -94,9 +107,11 @@ jobs:
           SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
           kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-          # The database password, decrypted with the workflow's own age key
-          sops --decrypt todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -
+          # The database password, decrypted with the workflow's own age key, into the target namespace
+          sops --decrypt todo-backend/secrets/postgres-secret.enc.yaml \
+            | yq '.metadata.namespace = strenv(NAMESPACE)' | kubectl apply -f -
           cd project/aks
+          kustomize edit set namespace "$NAMESPACE"
           for app in todo-project todo-backend wiki-todo-generator; do
             kustomize edit set image "$app=$REGISTRY/$app:$IMAGE_TAG"
           done
@@ -110,4 +125,4 @@ jobs:
           kubectl wait --for=condition=programmed gateway/project-gateway -n "$NAMESPACE" --timeout=5m
           address=$(kubectl get gateway project-gateway -n "$NAMESPACE" -o jsonpath='{.status.addresses[0].value}')
           kubectl get pods,gateway -n "$NAMESPACE"
-          echo "Deployed ${GITHUB_SHA::7} to namespace \`$NAMESPACE\`: http://$address" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed ${GITHUB_SHA::7} of \`$GITHUB_REF_NAME\` to namespace \`$NAMESPACE\`: http://$address" >> "$GITHUB_STEP_SUMMARY"

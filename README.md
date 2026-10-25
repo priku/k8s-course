@@ -43,6 +43,7 @@ On Azure Kubernetes Service instead of Google Kubernetes Engine (chapter 1 of th
 - [3.4.](https://github.com/priku/k8s-course/tree/3.4/ping-pong)
 - [3.5.](https://github.com/priku/k8s-course/tree/3.5/project)
 - [3.6.](https://github.com/priku/k8s-course/tree/3.6/project) ([workflow](https://github.com/priku/k8s-course/blob/3.6/.github/workflows/project.yaml))
+- [3.7.](https://github.com/priku/k8s-course/tree/3.7/project) ([workflow](https://github.com/priku/k8s-course/blob/3.7/.github/workflows/project.yaml))
 
 ---
 
@@ -184,7 +185,7 @@ Chapter 4 runs on **Azure Kubernetes Service (AKS)** instead of GKE, created wit
 
 Setup, costs and the GKE → AKS mapping are in [`terraform/README.md`](https://github.com/priku/k8s-course/tree/3.4/terraform).
 
-Exercises 3.1–3.8 were first done on AKS in 2025. 3.1–3.6 are redone for the 2026 course and their tags point to the new versions; the tags 3.7–3.8 still hold the 2025 versions until they are redone.
+Exercises 3.1–3.8 were first done on AKS in 2025. 3.1–3.7 are redone for the 2026 course and their tags point to the new versions; the tag 3.8 still holds the 2025 versions until they are redone.
 
 ---
 

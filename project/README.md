@@ -51,13 +51,14 @@ Changing the storage class of an existing claim is not allowed, so a cluster tha
 
 ## Deployment pipeline (exercise 3.6)
 
-[`.github/workflows/project.yaml`](../.github/workflows/project.yaml) deploys the project to AKS on every push to `main` that changes it:
+[`.github/workflows/project.yaml`](../.github/workflows/project.yaml) deploys the project to AKS on every push that changes it:
 
 1. **Sign in to Azure** with `azure/login` and GitHub's OIDC token. Entra ID trusts the token because of a federated credential on the managed identity `id-dwk-github-actions` ([`../terraform/github.tf`](../terraform/github.tf)): only jobs of this repository that run in the GitHub environment `aks` can use the identity. There are no passwords or keys in GitHub, only the IDs of the identity, tenant and subscription.
 2. **Start the cluster** if the nightly stop has stopped it.
-3. **Build and push** the three images to ACR, tagged `<branch>-<commit SHA>`.
-4. **Deploy** with Kustomize: `kustomize edit set image` puts the new tags into `project/aks`, and `kustomize build | kubectl apply` applies it. The database password is decrypted with SOPS using the workflow's own age key (the environment secret `SOPS_AGE_KEY`); `.sops.yaml` encrypts the project's Secret for it and for the personal key, and other Secrets for the personal key only.
-5. **Wait** for the rollouts and write the address of the Gateway to the job summary.
+3. **Choose the namespace**: `main` goes to `project`, every other branch to a namespace of its own (exercise 3.7, see below).
+4. **Build and push** the three images to ACR, tagged `<namespace>-<commit SHA>`.
+5. **Deploy** with Kustomize: `kustomize edit set namespace` and `kustomize edit set image` put the namespace and the new tags into `project/aks`, and `kustomize build | kubectl apply` applies it. The database password is decrypted with SOPS using the workflow's own age key (the environment secret `SOPS_AGE_KEY`); `.sops.yaml` encrypts the project's Secret for it and for the personal key, and other Secrets for the personal key only.
+6. **Wait** for the rollouts and write the address of the Gateway to the job summary.
 
 | Course material (GCP) | Here (Azure) |
 |---|---|
@@ -69,6 +70,24 @@ Changing the storage class of an existing claim is not allowed, so a cluster tha
 | Artifact Registry | Azure Container Registry |
 
 The frontend's Deployment uses the `Recreate` strategy: its image cache is a `ReadWriteOnce` Azure Disk that only one node can attach, and a rolling update would start the new pod, possibly on another node, before the old one lets go of the disk.
+
+## A separate environment for each branch (exercise 3.7)
+
+Every branch gets its own copy of the whole project: frontend, backend, its own Postgres with its own disk, the CronJob, and a Gateway with its own public IP. `main` is the production environment in the namespace `project`.
+
+| Branch | Namespace | Images |
+|---|---|---|
+| `main` | `project` | `todo-project:project-<sha>`, … |
+| `feature-x` | `feature-x` | `todo-project:feature-x-<sha>`, … |
+| `feature/Blue_Sky` | `feature-blue-sky` | … |
+
+The namespace is the branch name made valid for Kubernetes: lowercase, characters other than `a-z`, `0-9` and `-` replaced with `-`, at most 63 characters. A branch whose name would land in `project`, `default`, `exercises`, `monitoring` or a system namespace (`kube-*`, `aks-*`) is refused, so a branch cannot overwrite production or the cluster's own namespaces. The database Secret is applied with `yq` into the target namespace, and `kustomize edit set namespace` moves every resource of the project there.
+
+The address of each environment is in the summary of its workflow run, or:
+
+```bash
+kubectl get gateway project-gateway -n <namespace>
+```
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
