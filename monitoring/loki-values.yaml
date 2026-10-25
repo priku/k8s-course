@@ -1,20 +1,32 @@
-# Use single binary deployment mode for simplicity
+# Loki: a single instance with local filesystem storage
 deploymentMode: SingleBinary
-
-loki:
-  auth_enabled: false
-  commonConfig:
-    replication_factor: 1
-  storage:
-    type: filesystem
 
 singleBinary:
   replicas: 1
 
-# Disable other deployment modes
+backend:
+  replicas: 0
 read:
   replicas: 0
 write:
   replicas: 0
-backend:
-  replicas: 0
+
+loki:
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  useTestSchema: true
+
+# Not in the course material: the memcached caches request about 10 GiB of memory by default,
+# which no k3d node has, and a single local Loki does not need them
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# The canary only writes test lines into Loki to check it, so skip it (the chart test needs it)
+lokiCanary:
+  enabled: false
+test:
+  enabled: false

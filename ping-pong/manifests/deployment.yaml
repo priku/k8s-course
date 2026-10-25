@@ -15,10 +15,24 @@ spec:
     spec:
       containers:
         - name: ping-pong
-          image: ping-pong:v2.7
+          image: ping-pong:v3.4
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT
               value: "3000"
-            - name: POSTGRES_URL
-              value: "postgres://postgres:example@postgres-svc:5432/postgres?sslmode=disable"
+            # Standard Postgres client variables, read by pgx
+            - name: PGHOST
+              value: postgres-svc
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: postgres
+            - name: PGDATABASE
+              value: postgres
+            - name: PGSSLMODE
+              value: disable
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD

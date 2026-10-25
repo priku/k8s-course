@@ -3,6 +3,9 @@ kind: Ingress
 metadata:
   namespace: exercises
   name: app-ingress
+  annotations:
+    # ping-pong answers at its root since exercise 3.4: remove /pingpong before passing the request on
+    traefik.ingress.kubernetes.io/router.middlewares: exercises-strip-pingpong@kubernetescrd
 spec:
   rules:
   - http:
@@ -21,3 +24,13 @@ spec:
             name: log-output-svc
             port:
               number: 2345
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  namespace: exercises
+  name: strip-pingpong
+spec:
+  stripPrefix:
+    prefixes:
+      - /pingpong
