@@ -1,6 +1,13 @@
-# SOPS encrypts the data of every *.enc.yaml Secret for this age public key.
-# The private key is not in the repository (see ping-pong/README.md).
+# SOPS encrypts the data of every *.enc.yaml Secret for these age public keys.
+# The private keys are not in the repository (see ping-pong/README.md).
 creation_rules:
+  # The project database password is also readable by the deployment workflow (exercise 3.6),
+  # which has its own age key in the GitHub environment secret SOPS_AGE_KEY
+  - path_regex: todo-backend/secrets/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: >-
+      age1q8ku7k4h9775dz8aesy4y700un3hptpt3pggnts84nduwfh5vszqh5yzws,
+      age1cme5f3s629fuh4hkqwvjxs0tm893xd7feeyctmhjmvh38lf36q2qm26q28
   - path_regex: \.enc\.yaml$
     encrypted_regex: ^(data|stringData)$
     age: age1q8ku7k4h9775dz8aesy4y700un3hptpt3pggnts84nduwfh5vszqh5yzws

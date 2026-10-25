@@ -1,0 +1,113 @@
+name: Deploy the project
+
+# Exercise 3.6: every push to main that changes the project builds its images,
+# pushes them to the Azure Container Registry and deploys them to AKS with Kustomize.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'todo-project/**'
+      - 'todo-backend/**'
+      - 'wiki-todo-generator/**'
+      - 'project/**'
+      - '.github/workflows/project.yaml'
+
+permissions:
+  contents: read
+  id-token: write # GitHub's OIDC token, exchanged for an Azure token by azure/login
+
+# Never run two deployments of the same branch at the same time
+concurrency:
+  group: project-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-dwk-aks-sc
+  CLUSTER: aks-dwk-sc
+  REGISTRY: acrdwkakssc.azurecr.io
+  NAMESPACE: project
+  KUSTOMIZE_VERSION: 5.8.3
+  SOPS_VERSION: v3.13.3
+
+jobs:
+  build-publish-deploy:
+    name: Build, Publish and Deploy
+    runs-on: ubuntu-latest
+    # The Azure identity trusts only jobs in this GitHub environment (terraform/github.tf)
+    environment: aks
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Sign in to Azure (OIDC, no stored passwords)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start the cluster if the nightly stop has stopped it
+        run: |
+          state=$(az aks show -g "$RESOURCE_GROUP" -n "$CLUSTER" --query powerState.code -o tsv)
+          echo "Cluster power state: $state"
+          if [ "$state" = "Stopped" ]; then
+            az aks start -g "$RESOURCE_GROUP" -n "$CLUSTER"
+          fi
+
+      - name: Form the image tag
+        run: echo "IMAGE_TAG=${GITHUB_REF_NAME}-${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build and publish the images
+        run: |
+          az acr login --name "${REGISTRY%%.*}"
+          for app in todo-project todo-backend wiki-todo-generator; do
+            docker build --tag "$REGISTRY/$app:$IMAGE_TAG" "$app"
+            docker push "$REGISTRY/$app:$IMAGE_TAG"
+          done
+
+      - name: Set up kubelogin
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.21
+
+      - name: Get the AKS credentials
+        uses: azure/aks-set-context@v5
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER }}
+          use-kubelogin: 'true'
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Set up SOPS
+        run: |
+          curl -fsSL -o sops "https://github.com/getsops/sops/releases/download/$SOPS_VERSION/sops-$SOPS_VERSION.linux.amd64"
+          sudo install -m 0755 sops /usr/local/bin/sops
+
+      - name: Deploy
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          # The database password, decrypted with the workflow's own age key
+          sops --decrypt todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -
+          cd project/aks
+          for app in todo-project todo-backend wiki-todo-generator; do
+            kustomize edit set image "$app=$REGISTRY/$app:$IMAGE_TAG"
+          done
+          kustomize build . | kubectl apply -f -
+          kubectl rollout status statefulset postgres-ss -n "$NAMESPACE" --timeout=10m
+          kubectl rollout status deployment todo-backend-dep -n "$NAMESPACE" --timeout=10m
+          kubectl rollout status deployment todo-project-dep -n "$NAMESPACE" --timeout=10m
+
+      - name: Show the address
+        run: |
+          kubectl wait --for=condition=programmed gateway/project-gateway -n "$NAMESPACE" --timeout=5m
+          address=$(kubectl get gateway project-gateway -n "$NAMESPACE" -o jsonpath='{.status.addresses[0].value}')
+          kubectl get pods,gateway -n "$NAMESPACE"
+          echo "Deployed ${GITHUB_SHA::7} to namespace \`$NAMESPACE\`: http://$address" >> "$GITHUB_STEP_SUMMARY"

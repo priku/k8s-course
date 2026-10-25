@@ -44,7 +44,7 @@ jobs:
           fi
 
           # Use the tagged commit's subject without the conventional commit prefix, exercise number or PR number
-          SUBJECT=$(git log -1 --format=%s | sed -E 's/^[a-z]+(\([^)]*\))?!?: //; s/^Exercise [0-9]+\.[0-9]+:? *//; s/ \(#[0-9]+\)$//')
+          SUBJECT=$(git log -1 --format=%s | sed -E 's/^[a-z]+(\([^)]*\))?!?: //; s/^Exercise [0-9]+\.[0-9]+:? *//; s/ \(#[0-9]+\)$//; s/ \([Ee]xercise [0-9]+\.[0-9]+\)$//')
 
           gh release create "$TAG" \
             --verify-tag \
