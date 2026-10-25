@@ -11,6 +11,7 @@ The course material uses Google Kubernetes Engine in Chapter 4, and also allows 
 | Managed identity | `id-dwk-github-actions` | Identity of the deployment workflows, trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercises 3.6–3.8) |
 | Storage account | `stdwkbackupssc` | Database backups in the container `todo-backups`, Entra ID only, deleted after 30 days (`backup.tf`, exercise 3.10) |
 | Managed identity | `id-dwk-db-backup` | Identity of the backup CronJob through workload identity: a federated credential for the ServiceAccount `project/db-backup` (`backup.tf`) |
+| Log Analytics workspace | `log-dwk-aks-sc` | Container insights: container logs of the namespace `project`, 30 days, at most 0.2 GB/day (`monitoring.tf`, exercise 3.12) |
 | ACR task | `purge-old-project-images` | Deletes production images older than a week every Monday, keeping the five newest (`acr-purge.tf`) |
 | Gateway API | GatewayClass `approuting-istio` | AKS-managed Gateway API CRDs and the application routing Gateway API implementation (`gateway.tf`, exercise 3.3) |
 

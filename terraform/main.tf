@@ -60,6 +60,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
+  # Container insights agent, authenticated with the cluster's managed identity (monitoring.tf)
+  oms_agent {
+    log_analytics_workspace_id      = azurerm_log_analytics_workspace.aks.id
+    msi_auth_for_monitoring_enabled = true
+  }
+
   network_profile {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"
