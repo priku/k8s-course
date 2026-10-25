@@ -1,20 +1,20 @@
-FROM golang:1.21-alpine AS builder
+# Build stage
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
+COPY go.* ./
 COPY main.go ./
 
-RUN go mod download
-RUN go mod tidy
 RUN go build -o wiki-todo-generator main.go
 
-FROM alpine:latest
+# Run stage
+FROM alpine:3.24
+
+# CA certificates for the HTTPS request to Wikipedia
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
 
 COPY --from=builder /app/wiki-todo-generator .
 
