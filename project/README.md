@@ -89,6 +89,18 @@ The address of each environment is in the summary of its workflow run, or:
 kubectl get gateway project-gateway -n <namespace>
 ```
 
+## Deleting a branch deletes its environment (exercise 3.8)
+
+[`.github/workflows/project-cleanup.yaml`](../.github/workflows/project-cleanup.yaml) runs when a branch is deleted and deletes the branch's namespace. That removes the whole environment: the apps, the Gateway with its public IP, and the claims, whose Azure Disks are deleted with them. It computes the namespace from the branch name the same way as the deployment, refuses `main` and the reserved namespaces, and starts the cluster first if it is stopped.
+
+GitHub runs workflows for branch delete events only from the default branch, so this workflow works once it is on `main`. For a branch that was deleted before that, run it by hand:
+
+```bash
+gh workflow run project-cleanup.yaml -f branch=<deleted branch>
+```
+
+The images of a deleted branch stay in ACR; delete them with `az acr repository delete` if needed.
+
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
 ## Files
