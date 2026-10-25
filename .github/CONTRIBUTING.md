@@ -146,7 +146,19 @@ gh pr merge --squash --delete-branch
 # Delete branch after merge
 ```
 
-### 9. Automated Deployment
+### 9. Release the Exercise
+
+Every exercise needs a GitHub release named after the exercise number. Add the exercise link to the root `README.md` in the PR itself, so the README is included in the release. After merging, tag the merge commit:
+
+```bash
+git checkout main && git pull
+git tag 1.5
+git push origin 1.5
+```
+
+The `Create Exercise Release` workflow creates the release from the tag automatically. To backfill a release for an existing tag, run the workflow manually with the tag as input.
+
+### 10. Automated Deployment
 
 After merge to `main`:
 - CI/CD triggers automatically
