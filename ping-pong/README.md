@@ -11,7 +11,7 @@ A Go HTTP server that responds to `GET /` with `pong N`, where N is the number o
 - **2.3:** Runs in the `exercises` namespace together with Log output
 - **2.7:** Saves the counter in Postgres, run as a StatefulSet with one replica
 - **3.1:** Runs in Azure Kubernetes Service, exposed with a `LoadBalancer` Service
-- **3.2:** In AKS together with Log output behind an Ingress, answering at `/pingpong`
+- **3.2:** In AKS together with Log output behind an Ingress, answering at `/pingpong`; `GET /` answered 200 for Ingress health checks (until 3.4, where `/` became the pong itself)
 - **3.3:** The Ingress is replaced with the Gateway API: a Gateway and an HTTPRoute
 - **3.4:** The app answers at `/`; the HTTPRoute (and in k3d the Ingress) rewrites `/pingpong` to `/`
 
