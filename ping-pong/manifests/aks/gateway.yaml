@@ -1,0 +1,49 @@
+# Gateway API (exercise 3.3) instead of the Ingress of 3.2.
+# The Gateway asks the AKS-managed GatewayClass approuting-istio for a listener on port 80:
+# AKS runs an Envoy proxy Deployment for it behind a LoadBalancer Service with a public IP.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  namespace: exercises
+  name: app-gateway
+spec:
+  gatewayClassName: approuting-istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# The routing rules: /pingpong to ping-pong, everything else to Log output.
+# ping-pong answers at its root since exercise 3.4, so the route rewrites /pingpong to /
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: exercises
+  name: app-route
+spec:
+  parentRefs:
+    - name: app-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /pingpong
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: ping-pong-svc
+          port: 2345
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: log-output-svc
+          port: 2345
