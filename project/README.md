@@ -103,6 +103,28 @@ Production images pile up too, three for every deployment of `main`. The ACR tas
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
+## Resource requests and limits (exercise 3.11)
+
+Every container of the project has resource requests and limits. The values come from `kubectl top pods --containers` while `hey` loaded the AKS deployment through the Gateway (about 50 concurrent users on `/` and `/api/todos`, roughly 1 300 requests per second):
+
+| Container | Peak under load | Requests | Limits |
+|---|---|---|---|
+| todo-project | 162m CPU, 7Mi | 20m, 16Mi | 250m, 64Mi |
+| todo-backend | 109m CPU, 7Mi | 20m, 16Mi | 250m, 64Mi |
+| postgres | 62m CPU, 37Mi | 50m, 64Mi | 500m, 512Mi |
+| wiki-todo-generator (CronJob) | one short run | 10m, 16Mi | 100m, 32Mi |
+| db-backup (CronJob) | one short run | 20m, 32Mi | 250m, 128Mi |
+
+- **Requests** are what the scheduler reserves on a node, so they follow normal use: small, so that the project and its branch environments still fit next to the cluster's own pods (the AKS-managed `istiod` alone requests 2 × 500m CPU and 2 × 2Gi).
+- **Limits** leave room above the measured peaks. Going over the CPU limit only slows a container down (throttling), but going over the memory limit kills it (`OOMKilled`), so the memory limits have the larger margin. Postgres keeps up to 128MB of shared buffers by default, hence its 512Mi.
+
+```bash
+kubectl top pods -n project --containers
+kubectl describe nodes | grep -A6 'Allocated resources'   # what the requests take of each node
+```
+
+The Gateway's Envoy proxies are managed by AKS and come with their own requests (100m, 128Mi). A `ResourceQuota` per namespace could cap what a branch environment may take in total; it is not used here because every pod in the namespace, including the managed Gateway pods, would then need limits.
+
 ## Database backups (exercise 3.10)
 
 Production (`main`, namespace `project`) dumps its database every day with `pg_dump` and uploads it to Azure Blob Storage, authenticated with workload identity: no keys or Secrets for Azure. The CronJob and its ServiceAccount are the Kustomize component `components/db-backup`, which the deployment workflow adds for `main` only, so branch environments do not back up. See [`../db-backup`](../db-backup) for how it works and how to restore.

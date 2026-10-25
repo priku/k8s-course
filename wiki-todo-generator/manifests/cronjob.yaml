@@ -18,6 +18,14 @@ spec:
             - name: wiki-todo-generator
               image: wiki-todo-generator:v2.9
               imagePullPolicy: IfNotPresent
+              # One HTTP request to Wikipedia and one to todo-backend
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 32Mi
               env:
                 - name: RANDOM_ARTICLE_URL
                   value: https://en.wikipedia.org/wiki/Special:Random
