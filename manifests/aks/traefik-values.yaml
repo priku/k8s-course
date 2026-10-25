@@ -1,0 +1,15 @@
+# Traefik as the Ingress controller of the AKS cluster (exercise 3.2).
+# AKS no longer has a maintained managed Ingress controller: the application routing add-on's
+# NGINX is based on the retired ingress-nginx project and Azure supports it only until November 2026.
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+providers:
+  kubernetesIngress:
+    enabled: true
+  kubernetesCRD:
+    enabled: false
+
+service:
+  type: LoadBalancer
