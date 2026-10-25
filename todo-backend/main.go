@@ -6,8 +6,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -24,48 +27,36 @@ type CreateTodoRequest struct {
 }
 
 var (
-	todos []Todo
-	mu    sync.RWMutex
+	todos         = []Todo{}
+	mu            sync.RWMutex
+	maxTodoLength int
 )
 
-func main() {
-	// Initialize with empty todos list
-	todos = []Todo{}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
+// requireEnv returns the value of an environment variable and stops the app if it is not set,
+// so that a missing configuration fails at startup instead of falling back to a hidden default
+func requireEnv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("Environment variable %s is not set", name)
 	}
-
-	// Setup routes
-	http.HandleFunc("/todos", handleTodos)
-	http.HandleFunc("/healthz", handleHealth)
-
-	fmt.Printf("Todo-backend server started on port %s\n", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
-	}
+	return value
 }
 
-func handleTodos(w http.ResponseWriter, r *http.Request) {
-	// Enable CORS for frontend
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+func main() {
+	port := requireEnv("PORT")
 
-	// Handle preflight request
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
+	var err error
+	if maxTodoLength, err = strconv.Atoi(requireEnv("TODO_MAX_LENGTH")); err != nil || maxTodoLength < 1 {
+		log.Fatalf("Invalid TODO_MAX_LENGTH: must be a positive integer")
 	}
 
-	switch r.Method {
-	case "GET":
-		handleGetTodos(w, r)
-	case "POST":
-		handleCreateTodo(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	http.HandleFunc("GET /todos", handleGetTodos)
+	http.HandleFunc("POST /todos", handleCreateTodo)
+	http.HandleFunc("GET /healthz", handleHealth)
+
+	fmt.Printf("Todo-backend server started on port %s, max todo length %d\n", port, maxTodoLength)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -76,35 +67,37 @@ func handleGetTodos(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(todos); err != nil {
 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
-		return
 	}
 }
 
 func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	var req CreateTodoRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Text == "" {
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
 		http.Error(w, "Todo text is required", http.StatusBadRequest)
 		return
 	}
 
-	// Validate length (max 140 characters)
-	if len(req.Text) > 140 {
-		http.Error(w, "Todo text must be 140 characters or less", http.StatusBadRequest)
+	// Count characters, not bytes, so that ä or an emoji counts as one
+	if utf8.RuneCountInString(text) > maxTodoLength {
+		http.Error(w, fmt.Sprintf("Todo text must be %d characters or less", maxTodoLength), http.StatusBadRequest)
 		return
 	}
 
-	mu.Lock()
 	todo := Todo{
 		ID:        uuid.New().String(),
-		Text:      req.Text,
+		Text:      text,
 		Done:      false,
 		CreatedAt: time.Now(),
 	}
+
+	mu.Lock()
 	todos = append(todos, todo)
 	mu.Unlock()
 

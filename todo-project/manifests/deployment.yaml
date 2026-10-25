@@ -21,19 +21,20 @@ spec:
         - name: todo-project
           image: todo-project:v2.6
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: todo-project-config
           env:
             - name: PORT
               value: "3000"
-            - name: IMAGE_URL
+            - name: IMAGE_DIR
+              value: /usr/src/app/files
+            # The frontend checks the same limit as todo-backend, so it reads it from the backend's ConfigMap
+            - name: TODO_MAX_LENGTH
               valueFrom:
                 configMapKeyRef:
-                  name: todo-project-config
-                  key: IMAGE_URL
-            - name: IMAGE_REFRESH_INTERVAL
-              valueFrom:
-                configMapKeyRef:
-                  name: todo-project-config
-                  key: IMAGE_REFRESH_INTERVAL
+                  name: todo-backend-config
+                  key: TODO_MAX_LENGTH
           volumeMounts:
             - name: image-storage
               mountPath: /usr/src/app/files

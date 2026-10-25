@@ -2,46 +2,60 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 )
 
 const (
-	imageDir      = "/usr/src/app/files"
 	imageName     = "daily-image.jpg"
 	timestampFile = "image-timestamp.txt"
 )
 
+// Configuration, all from environment variables (see manifests/)
 var (
-	imageURL    string
-	imageMaxAge time.Duration
+	imageDir             string
+	imageURL             string
+	imageMaxAge          time.Duration
+	imageRefreshInterval string
+	backendURL           string
+	todoMaxLength        int
 )
 
+// imageMu makes sure only one request at a time checks and refreshes the image
+var imageMu sync.Mutex
+
+var pageTemplate = template.Must(template.New("page").Parse(pageHTML))
+
+// requireEnv returns the value of an environment variable and stops the app if it is not set,
+// so that a missing configuration fails at startup instead of falling back to a hidden default
+func requireEnv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("Environment variable %s is not set", name)
+	}
+	return value
+}
+
 func main() {
-	// Get configuration from environment variables
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-	}
+	port := requireEnv("PORT")
+	imageDir = requireEnv("IMAGE_DIR")
+	imageURL = requireEnv("IMAGE_URL")
+	backendURL = requireEnv("BACKEND_URL")
 
-	imageURL = os.Getenv("IMAGE_URL")
-	if imageURL == "" {
-		imageURL = "https://picsum.photos/1200" // default
-	}
-
-	refreshInterval := os.Getenv("IMAGE_REFRESH_INTERVAL")
-	if refreshInterval == "" {
-		refreshInterval = "10m" // default
-	}
 	var err error
-	imageMaxAge, err = time.ParseDuration(refreshInterval)
-	if err != nil {
-		log.Printf("Warning: Invalid IMAGE_REFRESH_INTERVAL '%s', using 10m: %v", refreshInterval, err)
-		imageMaxAge = 10 * time.Minute
+	imageRefreshInterval = requireEnv("IMAGE_REFRESH_INTERVAL")
+	if imageMaxAge, err = time.ParseDuration(imageRefreshInterval); err != nil {
+		log.Fatalf("Invalid IMAGE_REFRESH_INTERVAL %q: %v", imageRefreshInterval, err)
+	}
+	if todoMaxLength, err = strconv.Atoi(requireEnv("TODO_MAX_LENGTH")); err != nil || todoMaxLength < 1 {
+		log.Fatalf("Invalid TODO_MAX_LENGTH: must be a positive integer")
 	}
 
 	// Ensure image directory exists
@@ -50,8 +64,8 @@ func main() {
 	}
 
 	fmt.Printf("Server started in port %s\n", port)
-	fmt.Printf("Image URL: %s\n", imageURL)
-	fmt.Printf("Image refresh interval: %s\n", imageMaxAge)
+	fmt.Printf("Image: %s, refreshed every %s, cached in %s\n", imageURL, imageMaxAge, imageDir)
+	fmt.Printf("Backend URL for the browser: %s, max todo length: %d\n", backendURL, todoMaxLength)
 
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc("/image", handleImage)
@@ -103,7 +117,7 @@ func shouldRefreshImage() bool {
 }
 
 func fetchAndSaveImage() error {
-	log.Printf("Fetching new image from %s...\n", imageURL)
+	log.Printf("Fetching new image from %s", imageURL)
 
 	resp, err := http.Get(imageURL)
 	if err != nil {
@@ -115,18 +129,27 @@ func fetchAndSaveImage() error {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Create image file
+	// Download to a temporary file and rename it into place, so a request
+	// never sees a half-written image
 	imagePath := getImagePath()
-	file, err := os.Create(imagePath)
+	tmpPath := imagePath + ".tmp"
+	file, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create image file: %w", err)
 	}
-	defer file.Close()
 
 	// Copy image data
 	_, err = io.Copy(file, resp.Body)
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
+		os.Remove(tmpPath)
 		return fmt.Errorf("failed to save image: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, imagePath); err != nil {
+		return fmt.Errorf("failed to replace image: %w", err)
 	}
 
 	// Save timestamp
@@ -141,6 +164,9 @@ func fetchAndSaveImage() error {
 }
 
 func ensureImage() {
+	imageMu.Lock()
+	defer imageMu.Unlock()
+
 	if shouldRefreshImage() {
 		if err := fetchAndSaveImage(); err != nil {
 			log.Printf("Error fetching image: %v", err)
@@ -165,8 +191,19 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	// Ensure we have an image
 	ensureImage()
 
-	html := `
-<!DOCTYPE html>
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	err := pageTemplate.Execute(w, struct {
+		BackendURL           string
+		MaxLength            int
+		ImageRefreshInterval string
+	}{backendURL, todoMaxLength, imageRefreshInterval})
+	if err != nil {
+		log.Printf("Error rendering page: %v", err)
+	}
+}
+
+// pageHTML is an html/template, so the values are escaped for their context (HTML or JavaScript)
+const pageHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -323,15 +360,15 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
         <p class="subtitle">DevOps with Kubernetes - Exercise 2.2</p>
 
         <img src="/image" alt="Daily random image" class="daily-image">
-        <p class="image-caption">Random image from Lorem Picsum (refreshes every 10 minutes)</p>
+        <p class="image-caption">Random image (refreshes every {{.ImageRefreshInterval}})</p>
 
         <div class="todo-section">
             <h2>Create TODO</h2>
             <form class="todo-form" onsubmit="return false;">
-                <input type="text" id="todoInput" placeholder="Enter a new todo..." maxlength="140" oninput="updateCharCount()">
+                <input type="text" id="todoInput" placeholder="Enter a new todo..." maxlength="{{.MaxLength}}" oninput="updateCharCount()">
                 <button type="button" id="sendBtn" onclick="sendTodo()">Send</button>
             </form>
-            <p class="char-count" id="charCount">0/140 characters</p>
+            <p class="char-count" id="charCount">0/{{.MaxLength}} characters</p>
 
             <h2 style="margin-top: 30px;">TODOs</h2>
             <ul class="todo-list" id="todoList">
@@ -341,7 +378,8 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <script>
-        const BACKEND_URL = '/api';
+        const BACKEND_URL = {{.BackendURL}};
+        const MAX_LENGTH = {{.MaxLength}};
 
         // Fetch todos from backend
         async function fetchTodos() {
@@ -358,27 +396,31 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             }
         }
 
-        // Render todos in the UI
+        // Render todos in the UI. textContent keeps todo text from being parsed as HTML.
         function renderTodos(todos) {
             const todoList = document.getElementById('todoList');
+            todoList.replaceChildren();
 
             if (todos.length === 0) {
-                todoList.innerHTML = '<li>No todos yet. Create one above!</li>';
+                const empty = document.createElement('li');
+                empty.textContent = 'No todos yet. Create one above!';
+                todoList.append(empty);
                 return;
             }
 
-            todoList.innerHTML = todos.map(todo => {
-                const checked = todo.done ? 'checked' : '';
-                const completed = todo.done ? 'completed' : '';
-                const checkmark = todo.done ? '✓' : '';
+            for (const todo of todos) {
+                const checkbox = document.createElement('div');
+                checkbox.className = todo.done ? 'todo-checkbox checked' : 'todo-checkbox';
+                checkbox.textContent = todo.done ? '✓' : '';
 
-                return ` + "`" + `
-                    <li>
-                        <div class="todo-checkbox ${checked}">${checkmark}</div>
-                        <span class="todo-text ${completed}">${todo.text}</span>
-                    </li>
-                ` + "`" + `;
-            }).join('');
+                const text = document.createElement('span');
+                text.className = todo.done ? 'todo-text completed' : 'todo-text';
+                text.textContent = todo.text;
+
+                const li = document.createElement('li');
+                li.append(checkbox, text);
+                todoList.append(li);
+            }
         }
 
         function updateCharCount() {
@@ -387,13 +429,13 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
             const sendBtn = document.getElementById('sendBtn');
             const len = input.value.length;
 
-            charCount.textContent = len + '/140 characters';
+            charCount.textContent = len + '/' + MAX_LENGTH + ' characters';
 
-            if (len > 140) {
+            if (len > MAX_LENGTH) {
                 charCount.className = 'char-count error';
                 input.className = 'invalid';
                 sendBtn.disabled = true;
-            } else if (len > 120) {
+            } else if (len > MAX_LENGTH - 20) {
                 charCount.className = 'char-count warning';
                 input.className = '';
                 sendBtn.disabled = false;
@@ -413,8 +455,8 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
                 return;
             }
 
-            if (value.length > 140) {
-                alert('Todo must be 140 characters or less');
+            if (value.length > MAX_LENGTH) {
+                alert('Todo must be ' + MAX_LENGTH + ' characters or less');
                 return;
             }
 
@@ -449,6 +491,3 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>
 `
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, html)
-}
