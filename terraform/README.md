@@ -9,6 +9,8 @@ The course material uses Google Kubernetes Engine in Chapter 4, and also allows 
 | Container registry | `acrdwkakssc.azurecr.io` | Basic SKU, no admin user; the nodes pull with their kubelet identity (`AcrPull`) |
 | Logic App | `logic-aks-dwk-sc-nightly-stop` | Stops the cluster every night at 23:59 Finnish time |
 | Managed identity | `id-dwk-github-actions` | Identity of the deployment workflows, trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercises 3.6–3.8) |
+| Storage account | `stdwkbackupssc` | Database backups in the container `todo-backups`, Entra ID only, deleted after 30 days (`backup.tf`, exercise 3.10) |
+| Managed identity | `id-dwk-db-backup` | Identity of the backup CronJob through workload identity: a federated credential for the ServiceAccount `project/db-backup` (`backup.tf`) |
 | ACR task | `purge-old-project-images` | Deletes production images older than a week every Monday, keeping the five newest (`acr-purge.tf`) |
 | Gateway API | GatewayClass `approuting-istio` | AKS-managed Gateway API CRDs and the application routing Gateway API implementation (`gateway.tf`, exercise 3.3) |
 

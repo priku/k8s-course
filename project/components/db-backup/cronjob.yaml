@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  namespace: project
+  name: db-backup
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Helsinki
+  # The cluster is stopped at night, so a 03:00 run is usually missed. Kubernetes starts a
+  # missed run when the cluster is back, as long as it is less than a day late.
+  startingDeadlineSeconds: 86400
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: db-backup
+            # The AKS webhook adds the Azure token file and variables to pods with this label
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: db-backup
+          restartPolicy: Never
+          containers:
+            - name: db-backup
+              image: db-backup:v3.10
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                # PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE of the todo database
+                - configMapRef:
+                    name: todo-backend-config
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-secret
+                      key: POSTGRES_PASSWORD
+                - name: STORAGE_ACCOUNT
+                  value: stdwkbackupssc
+                - name: CONTAINER
+                  value: todo-backups

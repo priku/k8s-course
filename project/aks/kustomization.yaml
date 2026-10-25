@@ -14,3 +14,6 @@ images:
   - name: wiki-todo-generator
     newName: acrdwkakssc.azurecr.io/wiki-todo-generator
     newTag: v2.9
+  - name: db-backup
+    newName: acrdwkakssc.azurecr.io/db-backup
+    newTag: v3.10

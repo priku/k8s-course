@@ -46,6 +46,7 @@ On Azure Kubernetes Service instead of Google Kubernetes Engine (chapter 1 of th
 - [3.7.](https://github.com/priku/k8s-course/tree/3.7/project) ([workflow](https://github.com/priku/k8s-course/blob/3.7/.github/workflows/project.yaml))
 - [3.8.](https://github.com/priku/k8s-course/tree/3.8/project) ([workflow](https://github.com/priku/k8s-course/blob/3.8/.github/workflows/project-cleanup.yaml))
 - [3.9.](https://github.com/priku/k8s-course/tree/3.9/project#dbaas-vs-diy-exercise-39)
+- [3.10.](https://github.com/priku/k8s-course/tree/3.10/db-backup) ([terraform](https://github.com/priku/k8s-course/blob/3.10/terraform/backup.tf))
 
 ---
 

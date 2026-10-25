@@ -67,3 +67,9 @@ variable "github_environment" {
   type        = string
   default     = "aks"
 }
+
+variable "backup_storage_account_name" {
+  description = "Globally unique name of the storage account for the database backups"
+  type        = string
+  default     = "stdwkbackupssc"
+}
