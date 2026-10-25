@@ -35,7 +35,12 @@ Exercise submissions for [DevOps with Kubernetes](https://courses.mooc.fi/org/uh
 
 ### Chapter 4
 
-In progress (Google Kubernetes Engine).
+On Azure Kubernetes Service instead of Google Kubernetes Engine (chapter 1 of the course allows other cloud providers). The cluster is in [`terraform`](https://github.com/priku/k8s-course/tree/3.4/terraform).
+
+- [3.1.](https://github.com/priku/k8s-course/tree/3.1/ping-pong) ([terraform](https://github.com/priku/k8s-course/tree/3.1/terraform))
+- [3.2.](https://github.com/priku/k8s-course/tree/3.2/ping-pong) ([log-output](https://github.com/priku/k8s-course/tree/3.2/log-output))
+- [3.3.](https://github.com/priku/k8s-course/tree/3.3/ping-pong) ([terraform](https://github.com/priku/k8s-course/tree/3.3/terraform))
+- [3.4.](https://github.com/priku/k8s-course/tree/3.4/ping-pong)
 
 ---
 
@@ -168,48 +173,16 @@ k8s-course/
 
 ## ☁️ Azure Infrastructure (Part 3+)
 
-Using **Azure Kubernetes Service (AKS)** instead of GKE, deployed with **Terraform** and **Azure Verified Modules (AVM)**.
+Chapter 4 runs on **Azure Kubernetes Service (AKS)** instead of GKE, created with **Terraform** in the resource group `rg-dwk-aks-sc` (Sweden Central):
 
-### Previous Part 3 solutions (AKS, 2025)
+- AKS 1.37, Free tier, 2 × `Standard_D2as_v7`, Entra ID sign-in with Azure RBAC
+- Azure Container Registry `acrdwkakssc`, images built with `az acr build`
+- Gateway API with the AKS-managed GatewayClass `approuting-istio`
+- A Logic App that stops the cluster every night at 23:59 Finnish time, and a 30 EUR/month budget alert
 
-These were done on Azure AKS before the 2026 course version; Part 3 is now being redone on GKE.
+Setup, costs and the GKE → AKS mapping are in [`terraform/README.md`](https://github.com/priku/k8s-course/tree/3.4/terraform).
 
-- **[3.1](https://github.com/priku/k8s-course/tree/3.1)** - Ping-pong AKS: Deploy to Azure Kubernetes Service with LoadBalancer - http://9.223.84.58/pingpong
-- **[3.2](https://github.com/priku/k8s-course/tree/3.2)** - Deploy with Ingress: Log-output and Ping-pong with NGINX Ingress - http://4.165.21.217/
-- **[3.3](https://github.com/priku/k8s-course/tree/3.3)** - To the Gateway: Replace Ingress with Gateway API (NGINX Gateway Fabric) - http://4.165.59.114/
-- **[3.4](https://github.com/priku/k8s-course/tree/3.4)** - Rewritten routing: Path rewriting with Gateway API URLRewrite - http://4.165.59.114/pingpong
-- **[3.5](https://github.com/priku/k8s-course/tree/3.5)** - Kustomize configuration: Deploy todo-project to AKS with Kustomize
-- **[3.6](https://github.com/priku/k8s-course/tree/3.6)** - CI/CD for todo-project: GitHub Actions deployment pipeline to AKS
-- **[3.7](https://github.com/priku/k8s-course/tree/3.7)** - Branch-based environments: Each branch deploys to its own namespace
-- **[3.8](https://github.com/priku/k8s-course/tree/3.8)** - Environment cleanup: Automatic namespace deletion on branch removal
-
-### Infrastructure Components
-| Resource | Type | Region |
-|----------|------|--------|
-| Resource Group | `dwk-aks-rg` | Sweden Central |
-| AKS Cluster | `dwk-aks-cluster` | 2× Standard_B2s nodes |
-| Container Registry | `dwkacr*` | Basic SKU |
-
-### Deploy Infrastructure
-```bash
-cd terraform
-terraform init
-terraform plan -out=tfplan
-terraform apply tfplan
-
-# Get kubeconfig
-az aks get-credentials --resource-group dwk-aks-rg --name dwk-aks-cluster --overwrite-existing
-```
-
-### Push Images to ACR
-```bash
-ACR_NAME=$(terraform output -raw acr_name)
-az acr login --name $ACR_NAME
-
-# Tag and push
-docker tag ping-pong:latest $ACR_NAME.azurecr.io/ping-pong:latest
-docker push $ACR_NAME.azurecr.io/ping-pong:latest
-```
+Exercises 3.1–3.8 were first done on AKS in 2025. 3.1–3.4 are redone for the 2026 course and their tags point to the new versions; the tags 3.5–3.8 still hold the 2025 versions until they are redone.
 
 ---
 
