@@ -16,7 +16,7 @@ spec:
       containers:
         - name: ping-pong
           # Built with `az acr build` into the course registry (see ../../README.md)
-          image: acrdwkakssc.azurecr.io/ping-pong:v2.7
+          image: acrdwkakssc.azurecr.io/ping-pong:v3.2
           imagePullPolicy: IfNotPresent
           env:
             - name: PORT

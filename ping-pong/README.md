@@ -1,6 +1,6 @@
 # Ping-pong Application
 
-A Go HTTP server that responds to `GET /pingpong` with `pong N`, where N is the number of earlier requests. `GET /count` returns the current count as JSON (`{"count":N}`), which the [Log output application](../log-output) fetches over HTTP. The count is stored in a PostgreSQL database that runs as a StatefulSet, so it survives restarts of both ping-pong and the database.
+A Go HTTP server that responds to `GET /pingpong` with `pong N`, where N is the number of earlier requests. `GET /` answers `ok` without counting, for load balancer health checks. `GET /count` returns the current count as JSON (`{"count":N}`), which the [Log output application](../log-output) fetches over HTTP. The count is stored in a PostgreSQL database that runs as a StatefulSet, so it survives restarts of both ping-pong and the database.
 
 ## Exercises
 
@@ -11,16 +11,16 @@ A Go HTTP server that responds to `GET /pingpong` with `pong N`, where N is the 
 - **2.3:** Runs in the `exercises` namespace together with Log output
 - **2.7:** Saves the counter in Postgres, run as a StatefulSet with one replica
 - **3.1:** Runs in Azure Kubernetes Service, exposed with a `LoadBalancer` Service
-- **3.2:** In AKS together with Log output behind an Ingress, answering at `/pingpong`
+- **3.2:** In AKS together with Log output behind an Ingress, answering at `/pingpong`; `GET /` answers 200 for Ingress health checks
 
 ## Running locally
 
 ```bash
 docker network create pingpong
 docker run -d --name postgres --network pingpong -e POSTGRES_PASSWORD=local postgres:18.6-alpine3.24
-docker build -t ping-pong:v2.7 .
+docker build -t ping-pong:v3.2 .
 docker run -p 3000:3000 --network pingpong -e PGHOST=postgres -e PGUSER=postgres \
-  -e PGPASSWORD=local -e PGSSLMODE=disable ping-pong:v2.7
+  -e PGPASSWORD=local -e PGSSLMODE=disable ping-pong:v3.2
 curl http://localhost:3000/pingpong   # pong 0
 curl http://localhost:3000/pingpong   # pong 1
 curl http://localhost:3000/count      # {"count":2}
@@ -39,8 +39,8 @@ Deploy into the namespace `exercises` together with Log output, which is routed 
 ```bash
 kubectl apply -f ../manifests/exercises-namespace.yaml
 sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -
-docker build -t ping-pong:v2.7 .
-k3d image import ping-pong:v2.7
+docker build -t ping-pong:v3.2 .
+k3d image import ping-pong:v3.2
 kubectl apply -f manifests/               # ping-pong, Postgres StatefulSet, Ingress
 kubectl apply -f ../log-output/manifests/
 curl http://localhost:8081/pingpong   # pong 0
@@ -55,14 +55,14 @@ Traffic flow: `localhost:8081/pingpong` → Traefik Ingress `app-ingress` (names
 
 The course material uses Google Kubernetes Engine; these exercises use AKS instead (see [`../terraform`](../terraform) for the cluster). `manifests/aks/` holds the files that differ from the k3d ones:
 
-- `deployment.yaml` - the image comes from the course registry, `acrdwkakssc.azurecr.io/ping-pong:v2.7`
+- `deployment.yaml` - the image comes from the course registry, `acrdwkakssc.azurecr.io/ping-pong:v3.2`
 - `service.yaml` - ClusterIP (port 2345 → 3000). In 3.1 it was `type: LoadBalancer`, which made AKS add a rule and a public IP for ping-pong to the cluster's Azure Load Balancer; since 3.2 the Ingress brings the traffic in
 - `ingress.yaml` - Ingress `app-ingress` for Traefik: `/pingpong` → ping-pong, everything else → [Log output](../log-output)
 - `statefulset.yaml` - no `storageClassName`, so AKS creates an Azure Disk (StandardSSD) from its default storage class; 1Gi is the smallest disk Azure makes
 
 ```bash
 # Image for the AKS nodes (amd64), built in Azure by ACR Tasks
-az acr build --registry acrdwkakssc --image ping-pong:v2.7 --platform linux/amd64 .
+az acr build --registry acrdwkakssc --image ping-pong:v3.2 --platform linux/amd64 .
 
 kubectl config use-context aks-dwk-sc
 kubectl apply -f ../manifests/exercises-namespace.yaml
@@ -75,6 +75,8 @@ curl http://<ADDRESS>/                               # Log output with Ping / Po
 ```
 
 The Ingress needs Traefik in the cluster; see [`../manifests`](../manifests/README.md#ingress-controller-on-aks-exercise-32). The app already answers at `/pingpong` itself (since exercise 1.9), so the path needs no rewriting.
+
+The exercise notes that an Ingress expects every backend to answer 200 at `/`, even when it is routed at another path. That is GKE's Ingress, which health-checks the backends at `/` and sends no traffic to one that fails. Traefik does no such check, but ping-pong answers `ok` at `/` anyway (without adding to the counter), so the same manifests would also work behind a GKE Ingress.
 
 The first start can end in one restart: attaching the Azure Disk to Postgres may take longer than the minute ping-pong waits for the database, and Kubernetes then restarts ping-pong.
 
@@ -131,7 +133,7 @@ Postgres only reads `POSTGRES_PASSWORD` when it creates an empty database, so af
 
 ## Files
 
-- `main.go` - HTTP server with the counter in Postgres (`/pingpong`, `/count`)
+- `main.go` - HTTP server with the counter in Postgres (`/pingpong`, `/count`, and `/` for health checks)
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
 - `manifests/deployment.yaml` - Deployment with `PORT=3000` and the database connection
 - `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`
