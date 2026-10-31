@@ -30,6 +30,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", handleStatus)
+	http.HandleFunc("GET /healthz", handleHealth)
 
 	fmt.Printf("Log reader HTTP server started on port %s\n", port)
 	fmt.Printf("Fetching pong count from %s\n", pingPongURL)
@@ -37,6 +38,15 @@ func main() {
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// handleHealth is the readiness probe: ready only when ping-pong answers with the count
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if _, err := fetchPongCount(); err != nil {
+		http.Error(w, fmt.Sprintf("cannot get the count from ping-pong: %v", err), http.StatusServiceUnavailable)
+		return
+	}
+	fmt.Fprint(w, "ok")
 }
 
 func handleStatus(w http.ResponseWriter, r *http.Request) {

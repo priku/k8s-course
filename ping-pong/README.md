@@ -14,15 +14,16 @@ A Go HTTP server that responds to `GET /` with `pong N`, where N is the number o
 - **3.2:** In AKS together with Log output behind an Ingress, answering at `/pingpong`; `GET /` answered 200 for Ingress health checks (until 3.4, where `/` became the pong itself)
 - **3.3:** The Ingress is replaced with the Gateway API: a Gateway and an HTTPRoute
 - **3.4:** The app answers at `/`; the HTTPRoute (and in k3d the Ingress) rewrites `/pingpong` to `/`
+- **4.1:** Readiness probe on `/healthz`: the pod is ready only when the database answers
 
 ## Running locally
 
 ```bash
 docker network create pingpong
 docker run -d --name postgres --network pingpong -e POSTGRES_PASSWORD=local postgres:18.6-alpine3.24
-docker build -t ping-pong:v3.4 .
+docker build -t ping-pong:v4.1 .
 docker run -p 3000:3000 --network pingpong -e PGHOST=postgres -e PGUSER=postgres \
-  -e PGPASSWORD=local -e PGSSLMODE=disable ping-pong:v3.4
+  -e PGPASSWORD=local -e PGSSLMODE=disable ping-pong:v4.1
 curl http://localhost:3000/   # pong 0
 curl http://localhost:3000/   # pong 1
 curl http://localhost:3000/count      # {"count":2}
@@ -41,8 +42,8 @@ Deploy into the namespace `exercises` together with Log output, which is routed 
 ```bash
 kubectl apply -f ../manifests/exercises-namespace.yaml
 sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -
-docker build -t ping-pong:v3.4 .
-k3d image import ping-pong:v3.4
+docker build -t ping-pong:v4.1 .
+k3d image import ping-pong:v4.1
 kubectl apply -f manifests/               # ping-pong, Postgres StatefulSet, Ingress
 kubectl apply -f ../log-output/manifests/
 curl http://localhost:8081/pingpong   # pong 0
@@ -57,14 +58,14 @@ Traffic flow: `localhost:8081/pingpong` → Traefik Ingress `app-ingress` (names
 
 The course material uses Google Kubernetes Engine; these exercises use AKS instead (see [`../terraform`](../terraform) for the cluster). `manifests/aks/` holds the files that differ from the k3d ones:
 
-- `deployment.yaml` - the image comes from the course registry, `acrdwkakssc.azurecr.io/ping-pong:v3.4`
+- `deployment.yaml` - the image comes from the course registry, `acrdwkakssc.azurecr.io/ping-pong:v4.1`
 - `service.yaml` - ClusterIP (port 2345 → 3000). In 3.1 it was `type: LoadBalancer`, which made AKS add a rule and a public IP for ping-pong to the cluster's Azure Load Balancer; since 3.2 the traffic comes in through a shared entry point
 - `gateway.yaml` - Gateway `app-gateway` (GatewayClass `approuting-istio`, HTTP on port 80) and HTTPRoute `app-route`: `/pingpong` → ping-pong with a `URLRewrite` filter (`ReplacePrefixMatch: /`), everything else → [Log output](../log-output). In 3.2 this was an Ingress for Traefik
 - `statefulset.yaml` - no `storageClassName`, so AKS creates an Azure Disk (StandardSSD) from its default storage class; 1Gi is the smallest disk Azure makes
 
 ```bash
 # Image for the AKS nodes (amd64), built in Azure by ACR Tasks
-az acr build --registry acrdwkakssc --image ping-pong:v3.4 --platform linux/amd64 .
+az acr build --registry acrdwkakssc --image ping-pong:v4.1 --platform linux/amd64 .
 
 kubectl config use-context aks-dwk-sc
 kubectl apply -f ../manifests/exercises-namespace.yaml
@@ -80,6 +81,22 @@ curl http://<ADDRESS>/                               # Log output with Ping / Po
 The Gateway needs the GatewayClass `approuting-istio` in the cluster; see [`../manifests`](../manifests/README.md#gateway-api-on-aks-exercise-33). Since exercise 3.4 the app answers at `/`, and the route rewrites `/pingpong` to `/`, so the app does not need to know the URL structure of the cluster. The app itself answers 404 to `/pingpong`, and to any other path such as `/favicon.ico`, so stray requests do not add to the counter.
 
 The first start can end in one restart: attaching the Azure Disk to Postgres may take longer than the minute ping-pong waits for the database, and Kubernetes then restarts ping-pong.
+
+## Readiness (exercise 4.1)
+
+`GET /healthz` answers `200 ok` only when the database answers, otherwise `503`. The Deployment's readiness probe calls it every 5 seconds, so without a database the pod runs but is not ready (`0/1`), and the Service sends it no traffic.
+
+For that, ping-pong no longer gives up when the database is missing at startup. It starts serving right away and connects in the background every 5 seconds until the database answers and the `counter` table exists; until then `/`, `/count` and `/healthz` answer `503`. (Before, it waited a minute and then crashed, so a missing database meant a crash loop instead of a not-ready pod.)
+
+Test: apply everything but the database StatefulSet, then add it:
+
+```bash
+kubectl delete statefulset postgres-ss -n exercises   # the claim and the data stay
+kubectl apply -f manifests/deployment.yaml -f ../log-output/manifests/deployment.yaml
+kubectl get pods -n exercises    # ping-pong 0/1, log-output 1/2 (Running, no restarts)
+kubectl apply -f manifests/statefulset.yaml
+kubectl get pods -n exercises    # a moment later ping-pong 1/1, log-output 2/2
+```
 
 ## Database
 
@@ -134,7 +151,7 @@ Postgres only reads `POSTGRES_PASSWORD` when it creates an empty database, so af
 
 ## Files
 
-- `main.go` - HTTP server with the counter in Postgres (`/`, `/count`)
+- `main.go` - HTTP server with the counter in Postgres (`/`, `/count`, `/healthz`)
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
 - `manifests/deployment.yaml` - Deployment with `PORT=3000` and the database connection
 - `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`

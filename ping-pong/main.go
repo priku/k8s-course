@@ -7,12 +7,17 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var db *pgxpool.Pool
+var (
+	db *pgxpool.Pool
+	// dbReady is set once the database answers and the counter table exists
+	dbReady atomic.Bool
+)
 
 func main() {
 	port := os.Getenv("PORT")
@@ -29,23 +34,15 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := waitForDB(ctx); err != nil {
-		log.Fatalf("Database not available: %v", err)
-	}
-	if err := initDB(ctx); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-
-	cfg := db.Config().ConnConfig
-	fmt.Printf("Connected to database %s at %s:%d\n", cfg.Database, cfg.Host, cfg.Port)
-	if count, err := getCounter(ctx); err == nil {
-		fmt.Printf("Counter starting at: %d\n", count)
-	}
+	// Start serving right away and connect in the background, so that without a database the pod
+	// runs but is not ready (readiness probe on /healthz) instead of crashing and restarting
+	go connectDB(ctx)
 
 	// The app answers at the root; the cluster maps /pingpong here (HTTPRoute URLRewrite in AKS,
 	// Traefik stripPrefix in k3d). {$} matches only "/" itself, not every path
 	http.HandleFunc("GET /{$}", handlePingPong)
 	http.HandleFunc("GET /count", handleCount)
+	http.HandleFunc("GET /healthz", handleHealth)
 
 	fmt.Printf("Ping-pong server started on port %s\n", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -53,21 +50,27 @@ func main() {
 	}
 }
 
-// waitForDB retries for a while, since Postgres may still be starting when ping-pong starts
-func waitForDB(ctx context.Context) error {
-	const attempts = 30
-	var err error
-	for i := 1; i <= attempts; i++ {
+// connectDB tries every five seconds until the database answers and the table exists
+func connectDB(ctx context.Context) {
+	for {
 		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		err = db.Ping(pingCtx)
+		err := db.Ping(pingCtx)
 		cancel()
 		if err == nil {
-			return nil
+			err = initDB(ctx)
 		}
-		log.Printf("Database not ready (attempt %d/%d): %v", i, attempts, err)
-		time.Sleep(2 * time.Second)
+		if err == nil {
+			dbReady.Store(true)
+			cfg := db.Config().ConnConfig
+			fmt.Printf("Connected to database %s at %s:%d\n", cfg.Database, cfg.Host, cfg.Port)
+			if count, err := getCounter(ctx); err == nil {
+				fmt.Printf("Counter starting at: %d\n", count)
+			}
+			return
+		}
+		log.Printf("Database not ready, retrying in 5 s: %v", err)
+		time.Sleep(5 * time.Second)
 	}
-	return err
 }
 
 func initDB(ctx context.Context) error {
@@ -99,7 +102,26 @@ func incrementCounter(ctx context.Context) (int, error) {
 	return previous, err
 }
 
+// handleHealth is the readiness probe: ready only when the database answers
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if !dbReady.Load() {
+		http.Error(w, "database not connected yet", http.StatusServiceUnavailable)
+		return
+	}
+	pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := db.Ping(pingCtx); err != nil {
+		http.Error(w, "database not reachable", http.StatusServiceUnavailable)
+		return
+	}
+	fmt.Fprint(w, "ok")
+}
+
 func handlePingPong(w http.ResponseWriter, r *http.Request) {
+	if !dbReady.Load() {
+		http.Error(w, "database not connected yet", http.StatusServiceUnavailable)
+		return
+	}
 	currentCount, err := incrementCounter(r.Context())
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -112,6 +134,10 @@ func handlePingPong(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCount(w http.ResponseWriter, r *http.Request) {
+	if !dbReady.Load() {
+		http.Error(w, "database not connected yet", http.StatusServiceUnavailable)
+		return
+	}
 	currentCount, err := getCounter(r.Context())
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
