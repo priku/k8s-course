@@ -15,8 +15,22 @@ spec:
     spec:
       containers:
         - name: todo-backend
-          image: todo-backend:v2.10
+          image: todo-backend:v4.2
           imagePullPolicy: IfNotPresent
+          # Exercise 4.2. Readiness: the database answers. Liveness: the process answers; it does not
+          # check the database, so that a database outage does not restart the backend.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
           # Measured under load (about 50 concurrent users): at most 110m CPU and 7Mi memory.
           # The request is what it needs normally, the limit leaves room for peaks.
           resources:

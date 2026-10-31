@@ -57,6 +57,7 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 ### Chapter 5
 
 - [4.1.](https://github.com/priku/k8s-course/tree/4.1/ping-pong) ([log-output](https://github.com/priku/k8s-course/tree/4.1/log-output))
+- [4.2.](https://github.com/priku/k8s-course/tree/4.2/project#health-checks-exercise-42)
 
 ---
 

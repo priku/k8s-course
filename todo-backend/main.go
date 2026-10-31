@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -29,6 +30,8 @@ type CreateTodoRequest struct {
 var (
 	db            *pgxpool.Pool
 	maxTodoLength int
+	// dbReady is set once the database answers and the todos table exists
+	dbReady atomic.Bool
 )
 
 // fatal logs an error and stops the app
@@ -71,20 +74,15 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := waitForDB(ctx); err != nil {
-		fatal("Database not available", "error", err)
-	}
-	if err := initDB(ctx); err != nil {
-		fatal("Failed to initialize database", "error", err)
-	}
-
-	cfg := db.Config().ConnConfig
-	slog.Info("Connected to database", "database", cfg.Database, "host", cfg.Host, "port", cfg.Port)
+	// Serve right away and connect in the background: without a database the pod runs but is
+	// not ready (readiness probe on /healthz), instead of crashing and restarting
+	go connectDB(ctx)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /todos", handleGetTodos)
 	mux.HandleFunc("POST /todos", handleCreateTodo)
 	mux.HandleFunc("GET /healthz", handleHealth)
+	mux.HandleFunc("GET /livez", handleLive)
 
 	slog.Info("Todo-backend server started", "port", port, "max_todo_length", maxTodoLength)
 	if err := http.ListenAndServe(":"+port, logRequests(mux)); err != nil {
@@ -111,7 +109,7 @@ func logRequests(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		// Health checks would drown the interesting lines, so log them only when they fail
-		if r.URL.Path == "/healthz" && rec.status == http.StatusOK {
+		if (r.URL.Path == "/healthz" || r.URL.Path == "/livez") && rec.status == http.StatusOK {
 			return
 		}
 		slog.Info("request",
@@ -131,21 +129,33 @@ func rejectTodo(w http.ResponseWriter, reason, text, message string) {
 	http.Error(w, message, http.StatusBadRequest)
 }
 
-// waitForDB retries for a while, since Postgres may still be starting when the backend starts
-func waitForDB(ctx context.Context) error {
-	const attempts = 30
-	var err error
-	for i := 1; i <= attempts; i++ {
+// connectDB tries every five seconds until the database answers and the table exists
+func connectDB(ctx context.Context) {
+	for {
 		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		err = db.Ping(pingCtx)
+		err := db.Ping(pingCtx)
 		cancel()
 		if err == nil {
-			return nil
+			err = initDB(ctx)
 		}
-		slog.Warn("Database not ready", "attempt", i, "attempts", attempts, "error", err)
-		time.Sleep(2 * time.Second)
+		if err == nil {
+			dbReady.Store(true)
+			cfg := db.Config().ConnConfig
+			slog.Info("Connected to database", "database", cfg.Database, "host", cfg.Host, "port", cfg.Port)
+			return
+		}
+		slog.Warn("Database not ready, retrying in 5 s", "error", err)
+		time.Sleep(5 * time.Second)
 	}
-	return err
+}
+
+// requireDB answers 503 and returns false until the database is connected
+func requireDB(w http.ResponseWriter) bool {
+	if !dbReady.Load() {
+		http.Error(w, "Database not connected yet", http.StatusServiceUnavailable)
+		return false
+	}
+	return true
 }
 
 func initDB(ctx context.Context) error {
@@ -161,6 +171,9 @@ func initDB(ctx context.Context) error {
 }
 
 func handleGetTodos(w http.ResponseWriter, r *http.Request) {
+	if !requireDB(w) {
+		return
+	}
 	rows, err := db.Query(r.Context(), "SELECT id::text, text, done, created_at FROM todos ORDER BY created_at")
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -192,6 +205,9 @@ func handleGetTodos(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
+	if !requireDB(w) {
+		return
+	}
 	var req CreateTodoRequest
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -233,13 +249,26 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleHealth reports whether the database is reachable
+// handleHealth is the readiness probe: ready only when the database is connected and answers
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	if err := db.Ping(r.Context()); err != nil {
+	if !dbReady.Load() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, "Database not connected yet")
+		return
+	}
+	pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := db.Ping(pingCtx); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		fmt.Fprint(w, "Database unavailable")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "OK")
+}
+
+// handleLive is the liveness probe: the process answers. It does not check the database,
+// so that a database outage makes the backend unready but does not restart it.
+func handleLive(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "OK")
 }

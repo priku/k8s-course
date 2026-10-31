@@ -103,6 +103,24 @@ Production images pile up too, three for every deployment of `main`. The ACR tas
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 
+## Health checks (exercise 4.2)
+
+| | Readiness probe (gets traffic?) | Liveness probe (restart?) |
+|---|---|---|
+| todo-backend | `GET /healthz`: the database is connected and answers | `GET /livez`: the process answers |
+| todo-project | `GET /readyz`: not broken, and todo-backend's `/healthz` answers 200 | `GET /healthz`: not broken |
+
+The liveness probes leave the database out on purpose: a database outage should make the apps unready, so the Service stops sending them traffic, but restarting them would not help. Both apps now start without a database and connect in the background, so without one they run as `0/1` instead of crashing in a loop.
+
+The page has a **Break the app** button (`POST /break`). After it the frontend answers every request with `500`, and its liveness probe fails; after three failures in a row (about 15 seconds) Kubernetes restarts the container, and the new process works again. Tested in k3d: broken, restarted (`RESTARTS 1`) and working again after 32 seconds. Without the database both apps turned `0/1` without restarts and came back to `1/1` when it returned.
+
+```bash
+kubectl get pods -n project -w                                         # RESTARTS goes up after the button
+kubectl get events -n project --field-selector reason=Unhealthy        # the failing probes
+```
+
+The frontend's in-cluster address of the backend for the readiness probe is `BACKEND_HEALTH_URL` in the ConfigMap `todo-project-config`.
+
 ## Logs in Azure Monitor (exercise 3.12)
 
 GKE sends container logs to Cloud Logging by itself. The AKS counterpart is **Azure Monitor Container insights**, enabled in [`../terraform/monitoring.tf`](../terraform/monitoring.tf): the agent `ama-logs` on every node sends the stdout and stderr of the containers in the namespace `project` to the Log Analytics workspace `log-dwk-aks-sc`, table `ContainerLogV2`. todo-backend logs JSON (exercise 2.10), so the fields of each line are columns in `LogMessage`.
