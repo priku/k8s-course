@@ -26,6 +26,7 @@ Ping / Pongs: 3
 - **2.5:** ConfigMap with the file `information.txt` (mounted as a volume) and the env variable `MESSAGE`
 - **3.2:** Runs in Azure Kubernetes Service with ping-pong, behind an Ingress at `/`
 - **3.3:** Behind a Gateway API Gateway and HTTPRoute instead of the Ingress
+- **4.1:** Readiness probe on the reader: ready only when ping-pong answers with the count
 
 ## Deploying to Kubernetes (k3d)
 
@@ -45,8 +46,8 @@ Build, import and deploy together with ping-pong:
 
 ```bash
 docker build -t log-writer:v1.11 writer
-docker build -t log-reader:v2.5 reader
-k3d image import log-writer:v1.11 log-reader:v2.5
+docker build -t log-reader:v4.1 reader
+k3d image import log-writer:v1.11 log-reader:v4.1
 kubectl apply -f manifests/
 kubectl apply -f ../ping-pong/manifests/   # ping-pong + shared Ingress app-ingress
 # Open http://localhost:8081/log-output, call http://localhost:8081/pingpong and reload
@@ -78,13 +79,17 @@ kubectl run busybox --image=busybox --rm -it --restart=Never -- wget -qO - http:
 ```bash
 # Images for the AKS nodes (amd64), built in Azure by ACR Tasks
 az acr build --registry acrdwkakssc --image log-writer:v1.11 --platform linux/amd64 writer
-az acr build --registry acrdwkakssc --image log-reader:v2.5 --platform linux/amd64 reader
+az acr build --registry acrdwkakssc --image log-reader:v4.1 --platform linux/amd64 reader
 
 kubectl config use-context aks-dwk-sc
 kubectl apply -f manifests/aks/
 kubectl apply -f ../ping-pong/manifests/aks/   # ping-pong, Postgres, the Gateway and the HTTPRoute
 curl http://<Gateway ADDRESS>/                 # file content, env variable, log line, Ping / Pongs
 ```
+
+## Readiness (exercise 4.1)
+
+The reader answers `GET /healthz` with `200 ok` only when it gets the count from ping-pong, otherwise `503`. Its readiness probe calls it every 5 seconds. The writer has no probe, so while ping-pong is not available the pod shows `1/2`: the writer is ready, the reader is not. ping-pong itself is ready only with a database, so the chain is database → ping-pong → Log output. See [ping-pong](../ping-pong/README.md#readiness-exercise-41) for the test.
 
 ## ConfigMap
 

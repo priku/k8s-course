@@ -30,8 +30,15 @@ spec:
             - name: shared-logs
               mountPath: /usr/src/app/files
         - name: log-reader
-          image: log-reader:v2.5
+          image: log-reader:v4.1
           imagePullPolicy: IfNotPresent
+          # Ready only when ping-pong answers with the count (exercise 4.1)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: PORT
               value: "3000"

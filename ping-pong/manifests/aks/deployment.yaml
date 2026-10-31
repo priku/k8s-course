@@ -16,8 +16,15 @@ spec:
       containers:
         - name: ping-pong
           # Built with `az acr build` into the course registry (see ../../README.md)
-          image: acrdwkakssc.azurecr.io/ping-pong:v3.4
+          image: acrdwkakssc.azurecr.io/ping-pong:v4.1
           imagePullPolicy: IfNotPresent
+          # Ready only when the database answers (exercise 4.1)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: PORT
               value: "3000"

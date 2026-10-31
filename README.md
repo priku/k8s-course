@@ -54,6 +54,10 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 
 ![A new todo in the logs of todo-backend in Azure Monitor](project/images/azure-monitor-todo-created.png)
 
+### Chapter 5
+
+- [4.1.](https://github.com/priku/k8s-course/tree/4.1/ping-pong) ([log-output](https://github.com/priku/k8s-course/tree/4.1/log-output))
+
 ---
 
 ## About the project: AI-Enhanced Todo Application

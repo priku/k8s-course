@@ -15,8 +15,15 @@ spec:
     spec:
       containers:
         - name: ping-pong
-          image: ping-pong:v3.4
+          image: ping-pong:v4.1
           imagePullPolicy: IfNotPresent
+          # Ready only when the database answers (exercise 4.1)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: PORT
               value: "3000"
