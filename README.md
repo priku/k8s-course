@@ -71,3 +71,4 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 
 - [5.1.](https://github.com/priku/k8s-course/tree/5.1/dummysite)
 - [5.2.](https://github.com/priku/k8s-course/tree/5.2/service-mesh)
+- [5.3.](https://github.com/priku/k8s-course/tree/5.3/service-mesh#log-output-in-the-mesh-exercise-53) ([greeter](https://github.com/priku/k8s-course/tree/5.3/greeter))
