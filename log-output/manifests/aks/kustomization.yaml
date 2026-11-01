@@ -1,0 +1,10 @@
+# Log output and what it needs: its readiness depends on ping-pong, which owns the Gateway.
+# The image tags are set by .github/workflows/log-output.yaml on the branch release, which
+# Argo CD follows (exercise 4.7). The database password is a SOPS-encrypted Secret, applied separately.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ../../../ping-pong/manifests/aks
