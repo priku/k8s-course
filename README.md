@@ -331,3 +331,4 @@ kubectl port-forward deployment/todo-project-dep 3003:3000
 - **Credits:** 5 ECTS
 - **Submission:** Tags per exercise (e.g., `1.1`, `2.1`, `3.1`)
 
+- [4.4.](https://github.com/priku/k8s-course/tree/4.4/ping-pong#canary-release-exercise-44)
