@@ -20,7 +20,7 @@ todo-backend → NATS, subject "todos" → broadcaster (6 replicas, queue group)
 
 The exercise's external service here is [`mendhak/http-https-echo`](https://github.com/mendhak/docker-http-https-echo) in [`manifests/webhook-receiver.yaml`](manifests/webhook-receiver.yaml), which logs what it gets. It needs no accounts, and the project's messages stay inside the cluster. To send them elsewhere, change `WEBHOOK_URL` in [`manifests/configmap.yaml`](manifests/configmap.yaml) to a URL that takes this payload.
 
-NATS itself is in [`../project/base/nats.yaml`](../project/base/nats.yaml), a plain Deployment instead of the course's Helm chart. Every branch environment gets its own that way, so its messages cannot reach the broadcaster of another environment.
+NATS itself is in [`../project/base/nats.yaml`](../project/base/nats.yaml), a plain Deployment instead of the course's Helm chart. Every environment gets its own that way, so its messages cannot reach the broadcaster of another environment.
 
 ## Trying it
 

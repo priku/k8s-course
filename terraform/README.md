@@ -8,7 +8,7 @@ The course material uses Google Kubernetes Engine in Chapter 4, and also allows 
 | Node resource group | `rg-dwk-aks-nodes-sc` | Created by AKS for the VMs, disks, load balancer and public IPs |
 | Container registry | `acrdwkakssc.azurecr.io` | Basic SKU, no admin user; the nodes pull with their kubelet identity (`AcrPull`) |
 | Logic App | `logic-aks-dwk-sc-nightly-stop` | Stops the cluster every night at 23:59 Finnish time |
-| Managed identity | `id-dwk-github-actions` | Identity of the deployment workflows, trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercises 3.6–3.8) |
+| Managed identity | `id-dwk-github-actions` | Identity of the image build workflows (only `AcrPush`), trusted through a federated credential for the GitHub environment `aks` (`github.tf`, exercises 3.6 and 4.8) |
 | Storage account | `stdwkbackupssc` | Database backups in the container `todo-backups`, Entra ID only, deleted after 30 days (`backup.tf`, exercise 3.10) |
 | Managed identity | `id-dwk-db-backup` | Identity of the backup CronJob through workload identity: a federated credential for the ServiceAccount `project/db-backup` (`backup.tf`) |
 | Log Analytics workspace | `log-dwk-aks-sc` | Container insights: container logs of the namespace `project`, 30 days, at most 0.2 GB/day (`monitoring.tf`, exercise 3.12) |
