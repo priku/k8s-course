@@ -95,7 +95,7 @@ jobs:
           # The deployment tags them <namespace>-<commit SHA>. Match the whole tag, so that deleting
           # the branch `feature` does not delete the images of the branch `feature-x`.
           deleted=0
-          for app in todo-project todo-backend wiki-todo-generator; do
+          for app in todo-project todo-backend wiki-todo-generator broadcaster; do
             for tag in $(az acr repository show-tags --name "$REGISTRY" --repository "$app" -o tsv \
                 | grep -E "^${NAMESPACE}-[0-9a-f]{40}$" || true); do
               az acr repository delete --name "$REGISTRY" --image "$app:$tag" --yes

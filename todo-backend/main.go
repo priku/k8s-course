@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
 )
 
 type Todo struct {
@@ -38,6 +39,7 @@ var (
 	maxTodoLength int
 	// dbReady is set once the database answers and the todos table exists
 	dbReady atomic.Bool
+	nc      *nats.Conn
 )
 
 // fatal logs an error and stops the app
@@ -80,6 +82,20 @@ func main() {
 	}
 	defer db.Close()
 
+	// The messages are only notifications, so the backend works without NATS: the connection
+	// is retried in the background, and readiness does not depend on it
+	nc, err = nats.Connect(requireEnv("NATS_URL"),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+		nats.ConnectHandler(func(*nats.Conn) { slog.Info("Connected to NATS") }),
+		nats.ReconnectHandler(func(*nats.Conn) { slog.Info("Reconnected to NATS") }),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) { slog.Warn("Disconnected from NATS", "error", err) }),
+	)
+	if err != nil {
+		fatal("Could not set up the NATS connection", "error", err)
+	}
+
 	// Serve right away and connect in the background: without a database the pod runs but is
 	// not ready (readiness probe on /healthz), instead of crashing and restarting
 	go connectDB(ctx)
@@ -94,6 +110,18 @@ func main() {
 	slog.Info("Todo-backend server started", "port", port, "max_todo_length", maxTodoLength)
 	if err := http.ListenAndServe(":"+port, logRequests(mux)); err != nil {
 		fatal("Server stopped", "error", err)
+	}
+}
+
+// publishTodo tells broadcaster about a saved or updated todo. A failure is only logged,
+// since the todo itself is already safe in the database.
+func publishTodo(action string, todo Todo) {
+	data, err := json.Marshal(map[string]any{"action": action, "todo": todo})
+	if err == nil {
+		err = nc.Publish("todos", data)
+	}
+	if err != nil {
+		slog.Error("Could not publish to NATS", "action", action, "id", todo.ID, "error", err)
 	}
 }
 
@@ -248,6 +276,7 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("todo created", "id", todo.ID, "length", utf8.RuneCountInString(todo.Text), "text", todo.Text)
+	publishTodo("created", todo)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -284,6 +313,7 @@ func handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("todo updated", "id", todo.ID, "done", todo.Done)
+	publishTodo("updated", todo)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(todo); err != nil {

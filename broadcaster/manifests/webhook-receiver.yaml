@@ -1,0 +1,43 @@
+# Stands in for the external chat service: logs every request it gets (exercise 4.6, "Generic")
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: project
+  name: webhook-receiver-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-receiver
+  template:
+    metadata:
+      labels:
+        app: webhook-receiver
+    spec:
+      containers:
+        - name: webhook-receiver
+          image: mendhak/http-https-echo:43
+          env:
+            - name: HTTP_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 5m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: project
+  name: webhook-receiver-svc
+spec:
+  selector:
+    app: webhook-receiver
+  ports:
+    - port: 2345
+      targetPort: 8080

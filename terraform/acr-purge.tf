@@ -23,6 +23,7 @@ resource "azurerm_container_registry_task" "purge_old_images" {
             --filter 'todo-project:^(project|main)-[0-9a-f]{40}$'
             --filter 'todo-backend:^(project|main)-[0-9a-f]{40}$'
             --filter 'wiki-todo-generator:^(project|main)-[0-9a-f]{40}$'
+            --filter 'broadcaster:^(project|main)-[0-9a-f]{40}$'
             --ago 7d --keep 5 --untagged
           disableWorkingDirectoryOverride: true
           timeout: 3600
