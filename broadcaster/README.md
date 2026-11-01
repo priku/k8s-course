@@ -30,13 +30,14 @@ curl -X POST -H 'Content-Type: application/json' -d '{"text":"Buy milk"}' http:/
 kubectl logs -n project deployment/webhook-receiver-dep | grep '"body"'
 ```
 
-## Test results (k3d, 6 replicas)
+## Test results (6 replicas)
 
 | Test | Result |
 |---|---|
-| 40 new todos and 40 updates | 80 messages sent, each exactly once, by all six replicas (9–16 messages each) |
-| NATS stopped | Pods turn unready without restarts; todos are still saved |
-| NATS back | All replicas ready without restarts; the todo saved during the outage was sent once, after the connection returned |
+| k3d: 40 new todos and 40 updates | 80 messages sent, each exactly once, by all six replicas (9–16 messages each) |
+| AKS: 15 new todos and 15 updates | 30 messages sent, each exactly once, by all six replicas (1–7 messages each) |
+| k3d: NATS stopped | Pods turn unready without restarts; todos are still saved |
+| k3d: NATS back | All replicas ready without restarts; the todo saved during the outage was sent once, after the connection returned |
 
 ## Configuration
 
