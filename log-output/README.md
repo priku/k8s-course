@@ -27,6 +27,7 @@ Ping / Pongs: 3
 - **3.2:** Runs in Azure Kubernetes Service with ping-pong, behind an Ingress at `/`
 - **3.3:** Behind a Gateway API Gateway and HTTPRoute instead of the Ingress
 - **4.1:** Readiness probe on the reader: ready only when ping-pong answers with the count
+- **4.7:** In AKS the app is deployed with GitOps: Argo CD follows the branch `release`
 
 ## Deploying to Kubernetes (k3d)
 
@@ -90,6 +91,17 @@ curl http://<Gateway ADDRESS>/                 # file content, env variable, log
 ## Readiness (exercise 4.1)
 
 The reader answers `GET /healthz` with `200 ok` only when it gets the count from ping-pong, otherwise `503`. Its readiness probe calls it every 5 seconds. The writer has no probe, so while ping-pong is not available the pod shows `1/2`: the writer is ready, the reader is not. ping-pong itself is ready only with a database, so the chain is database → ping-pong → Log output. See [ping-pong](../ping-pong/README.md#readiness-exercise-41) for the test.
+
+## GitOps (exercise 4.7)
+
+In AKS, Log output is deployed by [Argo CD](../argocd). A push to `main` that changes the app starts [`.github/workflows/log-output.yaml`](../.github/workflows/log-output.yaml), which builds both images, tags them with the commit SHA and writes the tags to the branch `release`. Argo CD notices the change within three minutes and updates the cluster. The workflow has no access to the cluster.
+
+The Application covers everything the app needs: `manifests/aks` includes the [ping-pong](../ping-pong) manifests, since the reader is ready only when ping-pong answers. The Application has `selfHeal`, so a manual change in the cluster is reverted.
+
+```bash
+kubectl get application log-output -n argocd    # Synced, Healthy
+kubectl get deployment log-output-dep -n exercises -o jsonpath='{.spec.template.spec.containers[*].image}'
+```
 
 ## ConfigMap
 

@@ -1,0 +1,72 @@
+name: Release Log output
+
+# Exercise 4.7: GitOps. This workflow never touches the cluster: it builds the images and writes
+# their tags to the branch release, and Argo CD in the cluster pulls the change from there.
+# main is protected against direct pushes, so the workflow cannot commit to it.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'log-output/**'
+      - 'ping-pong/manifests/aks/**'
+      - '.github/workflows/log-output.yaml'
+
+permissions:
+  contents: write # to push to the branch release
+  id-token: write # GitHub's OIDC token, exchanged for an Azure token by azure/login
+
+# Two runs must not write to the branch release at the same time
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  REGISTRY: acrdwkakssc.azurecr.io
+  KUSTOMIZE_VERSION: 5.8.3
+
+jobs:
+  release:
+    name: Build, Publish and Release
+    runs-on: ubuntu-latest
+    # The Azure identity trusts only jobs in this GitHub environment (terraform/github.tf)
+    environment: aks
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the whole history, to merge main into the branch release
+
+      - name: Sign in to Azure (OIDC, no stored passwords)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and publish the images
+        run: |
+          az acr login --name "${REGISTRY%%.*}"
+          docker build --tag "$REGISTRY/log-writer:$GITHUB_SHA" log-output/writer
+          docker build --tag "$REGISTRY/log-reader:$GITHUB_SHA" log-output/reader
+          docker push "$REGISTRY/log-writer:$GITHUB_SHA"
+          docker push "$REGISTRY/log-reader:$GITHUB_SHA"
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Write the new tags to the branch release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch release 2>/dev/null || git switch -c release
+          # The branch release is main plus the image tags, so on a conflict keep its tags
+          git merge -X ours --no-edit "$GITHUB_SHA"
+          cd log-output/manifests/aks
+          kustomize edit set image "$REGISTRY/log-writer:$GITHUB_SHA" "$REGISTRY/log-reader:$GITHUB_SHA"
+          git add kustomization.yaml
+          git commit -m "Release Log output $GITHUB_SHA"
+          git push origin release
