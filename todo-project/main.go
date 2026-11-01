@@ -269,7 +269,7 @@ const pageHTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todo Project - Exercise 2.2</title>
+    <title>Todo Project</title>
     <style>
         * {
             margin: 0;
