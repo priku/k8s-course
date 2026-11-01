@@ -7,3 +7,5 @@ data:
   IMAGE_URL: "https://picsum.photos/1200"
   IMAGE_REFRESH_INTERVAL: "10m"
   BACKEND_URL: "/api"
+  # todo-backend inside the cluster, for the readiness probe (exercise 4.2)
+  BACKEND_HEALTH_URL: "http://todo-backend-svc:2345/healthz"

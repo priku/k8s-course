@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,11 +26,18 @@ var (
 	imageMaxAge          time.Duration
 	imageRefreshInterval string
 	backendURL           string
+	backendHealthURL     string
 	todoMaxLength        int
 )
 
 // imageMu makes sure only one request at a time checks and refreshes the image
 var imageMu sync.Mutex
+
+// broken is set by the "Break the app" button (exercise 4.2). Then the app stops working and its
+// liveness probe fails, until Kubernetes restarts the container.
+var broken atomic.Bool
+
+var healthClient = &http.Client{Timeout: 2 * time.Second}
 
 var pageTemplate = template.Must(template.New("page").Parse(pageHTML))
 
@@ -48,6 +56,7 @@ func main() {
 	imageDir = requireEnv("IMAGE_DIR")
 	imageURL = requireEnv("IMAGE_URL")
 	backendURL = requireEnv("BACKEND_URL")
+	backendHealthURL = requireEnv("BACKEND_HEALTH_URL")
 
 	var err error
 	imageRefreshInterval = requireEnv("IMAGE_REFRESH_INTERVAL")
@@ -67,12 +76,64 @@ func main() {
 	fmt.Printf("Image: %s, refreshed every %s, cached in %s\n", imageURL, imageMaxAge, imageDir)
 	fmt.Printf("Backend URL for the browser: %s, max todo length: %d\n", backendURL, todoMaxLength)
 
-	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/image", handleImage)
+	http.HandleFunc("/", unlessBroken(handleRoot))
+	http.HandleFunc("/image", unlessBroken(handleImage))
+	http.HandleFunc("POST /break", handleBreak)
+	http.HandleFunc("GET /healthz", handleHealth)
+	http.HandleFunc("GET /readyz", handleReady)
 
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// unlessBroken answers 500 instead of the page or the image once the app has been broken
+func unlessBroken(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if broken.Load() {
+			http.Error(w, "The app is broken. Its liveness probe fails, so Kubernetes restarts it soon.", http.StatusInternalServerError)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// handleBreak is behind the "Break the app" button
+func handleBreak(w http.ResponseWriter, r *http.Request) {
+	broken.Store(true)
+	log.Println("The app was broken with the button; the liveness probe will fail from now on")
+	w.WriteHeader(http.StatusAccepted)
+	fmt.Fprint(w, "broken")
+}
+
+// handleHealth is the liveness probe: fails once the app has been broken, so Kubernetes restarts it.
+// It does not check todo-backend, so that a backend outage does not restart the frontend.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if broken.Load() {
+		http.Error(w, "broken", http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, "ok")
+}
+
+// handleReady is the readiness probe: ready when the app is not broken and todo-backend is ready,
+// which in turn means that the database answers
+func handleReady(w http.ResponseWriter, r *http.Request) {
+	if broken.Load() {
+		http.Error(w, "broken", http.StatusServiceUnavailable)
+		return
+	}
+	resp, err := healthClient.Get(backendHealthURL)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("todo-backend not reachable: %v", err), http.StatusServiceUnavailable)
+		return
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, fmt.Sprintf("todo-backend not ready: %s", resp.Status), http.StatusServiceUnavailable)
+		return
+	}
+	fmt.Fprint(w, "ok")
 }
 
 func getImagePath() string {
@@ -357,7 +418,7 @@ const pageHTML = `<!DOCTYPE html>
 <body>
     <div class="container">
         <h1>Todo Project</h1>
-        <p class="subtitle">DevOps with Kubernetes - Exercise 2.2</p>
+        <p class="subtitle">DevOps with Kubernetes 2026</p>
 
         <img src="/image" alt="Daily random image" class="daily-image">
         <p class="image-caption">Random image (refreshes every {{.ImageRefreshInterval}})</p>
@@ -374,10 +435,19 @@ const pageHTML = `<!DOCTYPE html>
             <ul class="todo-list" id="todoList">
                 <li id="loadingMessage">Loading todos...</li>
             </ul>
+
+            <h2 style="margin-top: 30px;">Health check</h2>
+            <p class="image-caption">Makes the liveness probe fail, so that Kubernetes restarts the app.</p>
+            <button type="button" id="breakBtn" onclick="breakApp()">Break the app</button>
         </div>
     </div>
 
     <script>
+        async function breakApp() {
+            await fetch('/break', { method: 'POST' });
+            location.reload();
+        }
+
         const BACKEND_URL = {{.BackendURL}};
         const MAX_LENGTH = {{.MaxLength}};
 

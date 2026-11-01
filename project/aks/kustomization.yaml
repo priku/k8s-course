@@ -7,10 +7,10 @@ resources:
 images:
   - name: todo-project
     newName: acrdwkakssc.azurecr.io/todo-project
-    newTag: v2.9
+    newTag: v4.2
   - name: todo-backend
     newName: acrdwkakssc.azurecr.io/todo-backend
-    newTag: v2.10
+    newTag: v4.2
   - name: wiki-todo-generator
     newName: acrdwkakssc.azurecr.io/wiki-todo-generator
     newTag: v2.9

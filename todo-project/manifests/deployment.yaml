@@ -24,8 +24,23 @@ spec:
             claimName: todo-project-image-pvc
       containers:
         - name: todo-project
-          image: todo-project:v2.9
+          image: todo-project:v4.2
           imagePullPolicy: IfNotPresent
+          # Exercise 4.2. Readiness: not broken and todo-backend (so the database) answers.
+          # Liveness: not broken with the button; three failures in a row restart the container.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
           # Measured under load (about 50 concurrent users): at most 160m CPU and 7Mi memory.
           # The request is what it needs normally, the limit leaves room for peaks.
           resources:

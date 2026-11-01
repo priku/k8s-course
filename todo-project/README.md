@@ -17,14 +17,15 @@ The course project's frontend: a Go web server that serves the HTML page and the
 - **2.8:** The todos are saved in Postgres by [todo-backend](../todo-backend), so they survive restarts
 - **2.9:** [wiki-todo-generator](../wiki-todo-generator) adds a `Read <random Wikipedia URL>` todo every hour; Enter in the input now sends the todo
 - **3.5:** The project is deployed with Kustomize, locally and to Azure Kubernetes Service (see [`../project`](../project))
+- **4.2:** Readiness (`/readyz`) and liveness (`/healthz`) probes, and a **Break the app** button that makes the liveness probe fail (see [`../project`](../project/README.md#health-checks-exercise-42))
 
 ## Running locally
 
 ```bash
-docker build -t todo-project:v2.9 .
+docker build -t todo-project:v4.2 .
 docker run -p 3000:3000 -e PORT=3000 -e IMAGE_DIR=/usr/src/app/files \
   -e IMAGE_URL=https://picsum.photos/1200 -e IMAGE_REFRESH_INTERVAL=10m \
-  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v2.9
+  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v4.2
 # Open http://localhost:3000 (the todo list needs the backend at /api, so use the cluster for that)
 ```
 
@@ -46,10 +47,10 @@ Build, import and deploy the whole project with Kustomize (see [`../project`](..
 
 ```bash
 sops --decrypt ../todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
-docker build -t todo-project:v2.9 .
-docker build -t todo-backend:v2.10 ../todo-backend
+docker build -t todo-project:v4.2 .
+docker build -t todo-backend:v4.2 ../todo-backend
 docker build -t wiki-todo-generator:v2.9 ../wiki-todo-generator
-k3d image import todo-project:v2.9 todo-backend:v2.10 wiki-todo-generator:v2.9
+k3d image import todo-project:v4.2 todo-backend:v4.2 wiki-todo-generator:v2.9
 kubectl apply -k ../project/k3d   # frontend, backend + Postgres, CronJob, Ingresses
 # Open http://localhost:8081, add a todo and reload: it stays in the list
 kubectl get all,ingress,pvc -n project
@@ -94,6 +95,7 @@ The app has no defaults in the code: every setting is an env variable, and the a
 | `IMAGE_URL` | `https://picsum.photos/1200` | ConfigMap `todo-project-config` |
 | `IMAGE_REFRESH_INTERVAL` | `10m` (a Go duration) | ConfigMap `todo-project-config` |
 | `BACKEND_URL` | `/api` (todo-backend as the browser sees it) | ConfigMap `todo-project-config` |
+| `BACKEND_HEALTH_URL` | `http://todo-backend-svc:2345/healthz` (todo-backend inside the cluster, for the readiness probe) | ConfigMap `todo-project-config` |
 | `TODO_MAX_LENGTH` | `140` | ConfigMap `todo-backend-config` of [todo-backend](../todo-backend), so both apps check the same limit |
 
 `envFrom` brings in every key of `todo-project-config`, and `configMapKeyRef` picks the single key from the backend's ConfigMap. The page is an `html/template`, so the values are escaped correctly in HTML and JavaScript.
