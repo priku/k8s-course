@@ -24,6 +24,8 @@ The run ends when the todo is created; a failure exits with an error, and Kubern
 - `backoffLimit: 3` with `restartPolicy: Never` - a failed run is retried up to three times in new pods
 - The last three successful and three failed Jobs are kept, so their logs can still be read
 
+The Kubernetes configuration is in its own repository, so clone it next to this one first: `git clone https://github.com/priku/k8s-course-config`.
+
 ```bash
 docker build -t wiki-todo-generator:v2.9 .
 k3d image import wiki-todo-generator:v2.9

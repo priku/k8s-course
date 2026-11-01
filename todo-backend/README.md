@@ -48,6 +48,8 @@ curl -X PUT -H 'Content-Type: application/json' -d '{"done":true}' http://localh
 
 ## Deploying to Kubernetes (k3d)
 
+The Kubernetes configuration is in its own repository, so clone it next to this one first: `git clone https://github.com/priku/k8s-course-config`.
+
 Deploy together with the todo project (see [its README](../todo-project/README.md#deploying-to-kubernetes-k3d)):
 
 ```bash
