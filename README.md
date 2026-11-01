@@ -58,13 +58,13 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 
 - [4.1.](https://github.com/priku/k8s-course/tree/4.1/ping-pong) ([log-output](https://github.com/priku/k8s-course/tree/4.1/log-output))
 - [4.2.](https://github.com/priku/k8s-course/tree/4.2/project#health-checks-exercise-42)
+- [4.3.](https://github.com/priku/k8s-course/tree/4.3/monitoring#prometheus-query-exercise-43)
 
 ---
 
 ## About the project: AI-Enhanced Todo Application
 ### DevOps with Kubernetes + Azure AI Services (AI-102)
 
-[![Terraform](https://github.com/priku/k8s-course/actions/workflows/terraform.yml/badge.svg)](https://github.com/priku/k8s-course/actions/workflows/terraform.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A production-grade, cloud-native todo application demonstrating Kubernetes orchestration and Azure AI capabilities. This project combines learning from:

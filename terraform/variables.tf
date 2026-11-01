@@ -23,9 +23,15 @@ variable "kubernetes_version" {
 }
 
 variable "node_count" {
-  description = "Number of nodes in the default node pool"
+  description = "Number of nodes in the default node pool, and the autoscaler's minimum"
   type        = number
   default     = 2
+}
+
+variable "max_node_count" {
+  description = "Most nodes the cluster autoscaler may run (2 vCPU each; the subscription quota is 10 vCPU for the family)"
+  type        = number
+  default     = 3
 }
 
 variable "vm_size" {
