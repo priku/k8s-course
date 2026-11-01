@@ -57,6 +57,32 @@ In **Explore**, pick a datasource and switch to **Code**:
 | Loki | `{namespace="project", container="todo-backend"} \|= "todo rejected"` | Todos refused by [todo-backend](../todo-backend) |
 | Loki | `{namespace="project", container="todo-backend"} \| json \| msg="request" and status >= 400` | Failed requests, using the JSON fields |
 
+## Prometheus query (exercise 4.3)
+
+Prometheus has its own UI behind the Service `prom-prometheus-server`:
+
+```bash
+kubectl port-forward svc/prom-prometheus-server -n monitoring 9090:80
+# Open http://localhost:9090
+```
+
+The number of pods created by StatefulSets in the monitoring namespace:
+
+```promql
+count(kube_pod_info{namespace="monitoring", created_by_kind="StatefulSet"})
+```
+
+`kube_pod_info` comes from kube-state-metrics and has one series per pod; its label `created_by_kind` tells what created the pod (`ReplicaSet`, `StatefulSet`, `DaemonSet`, `Job`, …), so counting the series with that label gives the number of pods.
+
+![Prometheus: one pod created by a StatefulSet in the namespace monitoring](images/prometheus-statefulset-pods.png)
+
+The result here is **1**, not 3 as in the course material, for two reasons: the course installs the stack into a namespace called `prometheus`, and it uses the `kube-prometheus-stack` chart, where Prometheus and Alertmanager themselves run as StatefulSets. This stack (the `prometheus` chart, see the values above) runs Prometheus as a Deployment and has Alertmanager turned off, so the only StatefulSet pod in `monitoring` is `loki-0`. Broken down by StatefulSet, and over the whole cluster:
+
+```promql
+count by (created_by_name) (kube_pod_info{namespace="monitoring", created_by_kind="StatefulSet"})   # loki: 1
+count by (namespace) (kube_pod_info{created_by_kind="StatefulSet"})                                  # monitoring 1, exercises 1, project 1
+```
+
 ## Remove
 
 ```bash
