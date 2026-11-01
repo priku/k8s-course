@@ -390,6 +390,19 @@ const pageHTML = `<!DOCTYPE html>
         .todo-list li:last-child {
             margin-bottom: 0;
         }
+        .todo-action {
+            margin-left: auto;
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .todo-action:hover {
+            background: #5568d3;
+        }
         .todo-checkbox {
             width: 20px;
             height: 20px;
@@ -431,10 +444,13 @@ const pageHTML = `<!DOCTYPE html>
             </form>
             <p class="char-count" id="charCount">0/{{.MaxLength}} characters</p>
 
-            <h2 style="margin-top: 30px;">TODOs</h2>
+            <h2 style="margin-top: 30px;">Todo</h2>
             <ul class="todo-list" id="todoList">
                 <li id="loadingMessage">Loading todos...</li>
             </ul>
+
+            <h2 style="margin-top: 30px;">Done</h2>
+            <ul class="todo-list" id="doneList"></ul>
 
             <h2 style="margin-top: 30px;">Health check</h2>
             <p class="image-caption">Makes the liveness probe fail, so that Kubernetes restarts the app.</p>
@@ -468,13 +484,18 @@ const pageHTML = `<!DOCTYPE html>
 
         // Render todos in the UI. textContent keeps todo text from being parsed as HTML.
         function renderTodos(todos) {
-            const todoList = document.getElementById('todoList');
-            todoList.replaceChildren();
+            renderList('todoList', todos.filter(todo => !todo.done), 'No todos yet. Create one above!');
+            renderList('doneList', todos.filter(todo => todo.done), 'Nothing done yet.');
+        }
+
+        function renderList(listId, todos, emptyText) {
+            const list = document.getElementById(listId);
+            list.replaceChildren();
 
             if (todos.length === 0) {
                 const empty = document.createElement('li');
-                empty.textContent = 'No todos yet. Create one above!';
-                todoList.append(empty);
+                empty.textContent = emptyText;
+                list.append(empty);
                 return;
             }
 
@@ -487,9 +508,33 @@ const pageHTML = `<!DOCTYPE html>
                 text.className = todo.done ? 'todo-text completed' : 'todo-text';
                 text.textContent = todo.text;
 
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'todo-action';
+                button.textContent = todo.done ? 'Mark as not done' : 'Mark as done';
+                button.onclick = () => setDone(todo.id, !todo.done);
+
                 const li = document.createElement('li');
-                li.append(checkbox, text);
-                todoList.append(li);
+                li.append(checkbox, text, button);
+                list.append(li);
+            }
+        }
+
+        // Exercise 4.5: PUT /todos/<id> changes the done state, and the list is then read again
+        async function setDone(id, done) {
+            try {
+                const response = await fetch(BACKEND_URL + '/todos/' + encodeURIComponent(id), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ done })
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to update todo');
+                }
+                fetchTodos();
+            } catch (error) {
+                console.error('Error updating todo:', error);
+                alert('Could not update the todo. Please try again.');
             }
         }
 

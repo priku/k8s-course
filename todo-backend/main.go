@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,6 +27,10 @@ type Todo struct {
 
 type CreateTodoRequest struct {
 	Text string `json:"text"`
+}
+
+type UpdateTodoRequest struct {
+	Done *bool `json:"done"`
 }
 
 var (
@@ -81,6 +87,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /todos", handleGetTodos)
 	mux.HandleFunc("POST /todos", handleCreateTodo)
+	mux.HandleFunc("PUT /todos/{id}", handleUpdateTodo)
 	mux.HandleFunc("GET /healthz", handleHealth)
 	mux.HandleFunc("GET /livez", handleLive)
 
@@ -244,6 +251,41 @@ func handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(todo); err != nil {
+		slog.Error("Error encoding response", "error", err)
+	}
+}
+
+func handleUpdateTodo(w http.ResponseWriter, r *http.Request) {
+	if !requireDB(w) {
+		return
+	}
+	var req UpdateTodoRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Done == nil {
+		http.Error(w, `Request body must be {"done": true} or {"done": false}`, http.StatusBadRequest)
+		return
+	}
+
+	// id is compared as text, so that a malformed id is just not found instead of a database error
+	var todo Todo
+	err := db.QueryRow(r.Context(),
+		"UPDATE todos SET done = $1 WHERE id::text = $2 RETURNING id::text, text, done, created_at",
+		*req.Done, r.PathValue("id"),
+	).Scan(&todo.ID, &todo.Text, &todo.Done, &todo.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "Todo not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		slog.Error("Error updating todo", "error", err)
+		return
+	}
+
+	slog.Info("todo updated", "id", todo.ID, "done", todo.Done)
+
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(todo); err != nil {
 		slog.Error("Error encoding response", "error", err)
 	}

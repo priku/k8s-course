@@ -10,6 +10,7 @@ REST API that stores the todos of the [todo project](../todo-project). The todos
 - **2.8:** Todos are saved in Postgres, run as a StatefulSet with one replica; the backend reaches it through a ConfigMap and a Secret
 - **2.10:** Request logging as JSON lines, including every created and every rejected todo, searchable in Grafana
 - **4.2:** Readiness probe on `/healthz` (the database), liveness probe on `/livez`; starts without a database and connects in the background
+- **4.5:** `PUT /todos/<id>` marks a todo as done or not done
 
 ## API
 
@@ -17,6 +18,7 @@ REST API that stores the todos of the [todo project](../todo-project). The todos
 |---|---|---|---|
 | `GET` | `/todos` | | `200` with a JSON array of todos |
 | `POST` | `/todos` | `{"text": "Buy milk"}` | `201` with the new todo; `400` if the text is empty or over `TODO_MAX_LENGTH` (140) characters |
+| `PUT` | `/todos/<id>` | `{"done": true}` | `200` with the updated todo; `400` if the body has no `done`; `404` if there is no such todo |
 | `GET` | `/healthz` | | `200 OK` when the database is connected and answers, `503` otherwise (readiness probe) |
 | `GET` | `/livez` | | `200 OK` while the process runs (liveness probe) |
 
@@ -34,12 +36,13 @@ The text is trimmed, and the limit counts characters, not bytes.
 docker network create todo
 docker run -d --name postgres --network todo -e POSTGRES_USER=todo -e POSTGRES_DB=todos \
   -e POSTGRES_PASSWORD=local postgres:18.6-alpine3.24
-docker build -t todo-backend:v4.2 .
+docker build -t todo-backend:v4.5 .
 docker run -p 3000:3000 --network todo -e PORT=3000 -e TODO_MAX_LENGTH=140 \
   -e PGHOST=postgres -e PGPORT=5432 -e PGDATABASE=todos -e PGUSER=todo -e PGPASSWORD=local -e PGSSLMODE=disable \
-  todo-backend:v4.2
+  todo-backend:v4.5
 curl -X POST -H 'Content-Type: application/json' -d '{"text":"Buy milk"}' http://localhost:3000/todos
 curl http://localhost:3000/todos
+curl -X PUT -H 'Content-Type: application/json' -d '{"done":true}' http://localhost:3000/todos/<id>
 ```
 
 ## Deploying to Kubernetes (k3d)
@@ -49,8 +52,8 @@ Deploy together with the todo project (see [its README](../todo-project/README.m
 ```bash
 kubectl apply -f ../manifests/project-namespace.yaml
 sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
-docker build -t todo-backend:v4.2 .
-k3d image import todo-backend:v4.2
+docker build -t todo-backend:v4.5 .
+k3d image import todo-backend:v4.5
 kubectl apply -k ../project/k3d                                        # the whole project with Kustomize
 curl http://localhost:8081/api/todos
 ```
