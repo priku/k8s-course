@@ -75,3 +75,4 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 - [5.4.](https://github.com/priku/k8s-course/tree/5.4/wikipedia)
 - [5.5.](https://github.com/priku/k8s-course/tree/5.5/beyond-kubernetes#platform-comparison-rancher-vs-openshift-exercise-55)
 - [5.6.](https://github.com/priku/k8s-course/tree/5.6/knative)
+- [5.7.](https://github.com/priku/k8s-course/tree/5.7/knative#ping-pong-as-a-serverless-service-exercise-57) ([ping-pong](https://github.com/priku/k8s-course/blob/5.7/ping-pong/manifests/knative/service.yaml))

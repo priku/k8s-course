@@ -1,0 +1,39 @@
+# Exercise 5.7: ping-pong as a Knative Service. Knative creates the Deployment, the Service and
+# the route, and runs no pods at all when there is no traffic. The counter is in Postgres, so
+# nothing is lost when the pods go away. Knative sets PORT from containerPort.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  namespace: exercises
+  name: ping-pong
+spec:
+  template:
+    spec:
+      containers:
+        # dev.local is on Knative's list of registries whose tags it does not try to look up,
+        # so this works with an image imported into k3d
+        - image: dev.local/ping-pong:v5.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+            periodSeconds: 1
+          env:
+            # Standard Postgres client variables, read by pgx
+            - name: PGHOST
+              value: postgres-svc
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: postgres
+            - name: PGDATABASE
+              value: postgres
+            - name: PGSSLMODE
+              value: disable
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
