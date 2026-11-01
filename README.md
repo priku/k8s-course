@@ -59,3 +59,4 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 - [4.1.](https://github.com/priku/k8s-course/tree/4.1/ping-pong) ([log-output](https://github.com/priku/k8s-course/tree/4.1/log-output))
 - [4.2.](https://github.com/priku/k8s-course/tree/4.2/project#health-checks-exercise-42)
 - [4.3.](https://github.com/priku/k8s-course/tree/4.3/monitoring#prometheus-query-exercise-43)
+- [4.4.](https://github.com/priku/k8s-course/tree/4.4/ping-pong#canary-release-exercise-44)
