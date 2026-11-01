@@ -1,21 +1,18 @@
-# The todo project with Kustomize
+# The todo project
 
-The todo project is four applications that are always deployed together: the frontend [todo-project](../todo-project), [todo-backend](../todo-backend) with its Postgres, the hourly CronJob [wiki-todo-generator](../wiki-todo-generator), and [broadcaster](../broadcaster) with NATS (exercise 4.6). Since exercise 3.5 they are deployed with [Kustomize](https://kubectl.docs.kubernetes.io/references/kustomize/), which is built into `kubectl` (`kubectl apply -k`).
+The todo project is four applications that are always deployed together: the frontend [todo-project](../todo-project), [todo-backend](../todo-backend) with its Postgres, the hourly CronJob [wiki-todo-generator](../wiki-todo-generator), and [broadcaster](../broadcaster) with NATS (exercise 4.6). Since exercise 4.10 this repository holds their code, and their Kubernetes configuration is in the separate repository [priku/k8s-course-config](https://github.com/priku/k8s-course-config), deployed with [Kustomize](https://kubectl.docs.kubernetes.io/references/kustomize/):
 
 ```
-todo-project/manifests/kustomization.yaml          ┐ each app's manifests are a base:
-todo-backend/manifests/kustomization.yaml          │ what is the same in every cluster
-wiki-todo-generator/manifests/kustomization.yaml   │
-broadcaster/manifests/kustomization.yaml           ┘
-project/base/   → the three apps together
-project/k3d/    → base + Traefik Ingresses (local cluster, images from `k3d image import`)
-project/aks/    → production: base + Gateway API routing and backups, images from the registry acrdwkakssc.azurecr.io
-project/staging/ → staging: base + Gateway API routing, images from the registry
+apps/<app>/            what is the same in every cluster
+base/                  all the applications and NATS
+overlays/k3d/          base + Traefik Ingresses (local cluster, images from `k3d image import`)
+overlays/production/   base + Gateway API routing and backups, images from the registry acrdwkakssc.azurecr.io
+overlays/staging/      base + Gateway API routing, images from the registry
 ```
 
 Only what differs between the clusters is in the overlays:
 
-| | k3d (`project/k3d`) | AKS (`project/aks`) |
+| | `overlays/k3d` | `overlays/production` and `overlays/staging` |
 |---|---|---|
 | Images | `todo-project:v2.9` etc., imported into the cluster | `acrdwkakssc.azurecr.io/...`, set with the `images` field |
 | Routing | Traefik Ingresses; a Middleware strips `/api` | Gateway `project-gateway` (`approuting-istio`) and HTTPRoute `project-route`; a `URLRewrite` filter strips `/api` |
@@ -23,54 +20,42 @@ Only what differs between the clusters is in the overlays:
 
 The bases leave out `storageClassName`, so every cluster uses its own default storage class.
 
-## Deploy
-
-The namespace and the database password are applied first: the password is a SOPS-encrypted Secret, which Kustomize cannot decrypt by itself.
+## Deploy to a local cluster
 
 ```bash
+git clone https://github.com/priku/k8s-course-config
 kubectl apply -f manifests/project-namespace.yaml
-sops --decrypt todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -
+sops --decrypt k8s-course-config/apps/todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -
 
-# Local k3d cluster
-docker build -t todo-project:v2.9 todo-project
-docker build -t todo-backend:v2.10 todo-backend
+docker build -t todo-project:v4.5 todo-project
+docker build -t todo-backend:v4.6 todo-backend
 docker build -t wiki-todo-generator:v2.9 wiki-todo-generator
-k3d image import todo-project:v2.9 todo-backend:v2.10 wiki-todo-generator:v2.9
-kubectl apply -k project/k3d          # http://localhost:8081
-
-# Azure Kubernetes Service (exercise 3.5)
-az acr build --registry acrdwkakssc --image todo-project:v2.9 --platform linux/amd64 todo-project
-az acr build --registry acrdwkakssc --image todo-backend:v2.10 --platform linux/amd64 todo-backend
-az acr build --registry acrdwkakssc --image wiki-todo-generator:v2.9 --platform linux/amd64 wiki-todo-generator
-kubectl config use-context aks-dwk-sc
-kubectl apply -k project/aks
-kubectl get gateway project-gateway -n project   # ADDRESS: the public IP of the project
+docker build -t broadcaster:v4.9 broadcaster
+k3d image import todo-project:v4.5 todo-backend:v4.6 wiki-todo-generator:v2.9 broadcaster:v4.9
+kubectl apply -k k8s-course-config/overlays/k3d    # http://localhost:8081
 ```
 
-`kubectl kustomize project/aks` prints the resulting manifests without applying them.
+`kubectl kustomize k8s-course-config/overlays/production` prints the manifests of production without applying them.
 
-Changing the storage class of an existing claim is not allowed, so a cluster that still has the claims from before exercise 3.5 (with `storageClassName: local-path`) needs them deleted first, together with the Postgres StatefulSet. This deletes the data.
-
-## GitOps and environments (exercises 4.8 and 4.9)
+## GitOps and environments (exercises 4.8–4.10)
 
 Argo CD deploys the project to AKS. Nothing outside the cluster has access to it. There are two environments:
 
 | | Staging | Production |
 |---|---|---|
-| Goes there | Every commit to `main` that changes the project | Every tagged commit |
+| Goes there | Every commit to `main` that changes the code of the project | Every tagged commit |
 | Workflow | [`project.yaml`](../.github/workflows/project.yaml) | [`project-production.yaml`](../.github/workflows/project-production.yaml) |
 | Namespace | `staging` | `project` |
-| Overlay | [`staging/`](staging) | [`aks/`](aks) |
-| Branch that Argo CD follows | `staging` | `production` |
+| Overlay that Argo CD follows | [`overlays/staging`](https://github.com/priku/k8s-course-config/tree/main/overlays/staging) | [`overlays/production`](https://github.com/priku/k8s-course-config/tree/main/overlays/production) |
 | Images | `<app>:main-<sha>` | `<app>:production-<sha>` |
 | [broadcaster](../broadcaster) | Only logs the messages, one replica | Sends them to the webhook, six replicas |
 | Database backups | No | Yes, every day |
 
 1. The workflow signs in to Azure with GitHub's OIDC token, builds the images and pushes them to ACR.
-2. It merges the commit into the branch of the environment and writes the new tags to the overlay there.
-3. [Argo CD](../argocd) notices the change within three minutes and applies the overlay from that branch.
+2. It commits the new tags to the overlay of the environment in the configuration repository, with a deploy key that can write only to that repository.
+3. [Argo CD](../argocd) notices the change within three minutes and applies the overlay.
 
-Production has a branch of its own, so a commit to `main` changes nothing in production until it is tagged. The Applications have `prune` and `selfHeal`, so a resource removed from Git is removed from the cluster, and a manual change in the cluster is reverted. The database password is the exception: it is a SOPS-encrypted Secret, applied to each namespace outside Argo CD. When the nightly stop has stopped the cluster nothing starts it any more, and Argo CD catches up after `az aks start`.
+A commit to this repository changes nothing in production until it is tagged. A change to the configuration itself is a commit to the configuration repository. The Applications have `prune` and `selfHeal`, so a resource removed from Git is removed from the cluster, and a manual change in the cluster is reverted. The database password is the exception: it is a SOPS-encrypted Secret, applied to each namespace outside Argo CD. When the nightly stop has stopped the cluster nothing starts it any more, and Argo CD catches up after `az aks start`.
 
 The branch environments of exercises 3.7 and 3.8 are gone: they would need the workflow to have access to the cluster. Their implementation is in the tags [3.7](https://github.com/priku/k8s-course/tree/3.7) and [3.8](https://github.com/priku/k8s-course/tree/3.8).
 
@@ -90,7 +75,7 @@ The frontend's Deployment uses the `Recreate` strategy: its image cache is a `Re
 
 Staging images pile up, a set for every push to `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `main-*` images older than a week, keeping the five newest of each repository. `production-*` images are kept, so that the purge can never delete what production runs.
 
-GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`.
+GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `CONFIG_REPO_DEPLOY_KEY`.
 
 ## Health checks (exercise 4.2)
 
@@ -183,9 +168,6 @@ The project's Postgres runs in the cluster as a StatefulSet with an Azure Disk (
 
 ## Files
 
-- `base/kustomization.yaml` - the apps and NATS
-- `k3d/` - the Ingresses for `/` and `/api` and the Traefik Middleware `strip-api`
-- `aks/kustomization.yaml` - production: the images from ACR, Gateway and database backups
-- `staging/kustomization.yaml` - staging: the images from ACR and Gateway; broadcaster only logs
-- `components/gateway/` - Gateway and HTTPRoute for `/` and `/api`
-- `components/db-backup/` - the daily backup CronJob and its workload identity ServiceAccount, production only
+- `images/` - The screenshots of this README
+
+The configuration is in [priku/k8s-course-config](https://github.com/priku/k8s-course-config).

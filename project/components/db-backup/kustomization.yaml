@@ -1,8 +1,0 @@
-# Daily database backup to Azure Blob Storage (exercise 3.10). A component, so that it can be
-# left out of other environments: the identity trusts the ServiceAccount of the namespace
-# `project` only.
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component
-resources:
-  - serviceaccount.yaml
-  - cronjob.yaml
