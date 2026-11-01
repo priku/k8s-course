@@ -15,7 +15,9 @@ var (
 	pingPongURL     = "http://ping-pong-svc:2345/count"
 	informationFile = "/etc/config/information.txt"
 	greeterURL      string
-	client          = &http.Client{Timeout: 2 * time.Second}
+	// Exercise 5.7: a serverless ping-pong can take about 30 seconds to answer, if the request
+	// comes while Knative is still shutting down the previous pod
+	client = &http.Client{Timeout: 45 * time.Second}
 )
 
 func main() {

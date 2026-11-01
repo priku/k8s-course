@@ -29,6 +29,7 @@ Ping / Pongs: 3
 - **4.1:** Readiness probe on the reader: ready only when ping-pong answers with the count
 - **4.7:** In AKS the app is deployed with GitOps: Argo CD follows the branch `release`
 - **5.3:** In k3d the app runs in the [service mesh](../service-mesh) and shows a greeting from [greeter](../greeter); in AKS `GREETER_URL` is not set, so there is no greeting
+- **5.7:** Calls a serverless ping-pong in [Knative](../knative) with `manifests/knative/deployment.yaml`
 
 ## Deploying to Kubernetes (k3d)
 
