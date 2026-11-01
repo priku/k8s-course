@@ -1,0 +1,71 @@
+name: Release the project to production
+
+# Exercise 4.9: every tagged commit goes to production. The workflow builds the images and writes
+# their tags to the branch production, which Argo CD follows. The tag production-<sha> is not
+# touched by the weekly ACR purge, so that many pushes to main cannot delete what production runs.
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write # to push to the branch production
+  id-token: write # GitHub's OIDC token, exchanged for an Azure token by azure/login
+
+# Two runs must not write to the branch production at the same time
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: acrdwkakssc.azurecr.io
+  KUSTOMIZE_VERSION: 5.8.3
+  APPS: todo-project todo-backend wiki-todo-generator db-backup broadcaster
+
+jobs:
+  release:
+    name: Build, Publish and Release
+    runs-on: ubuntu-latest
+    # The Azure identity trusts only jobs in this GitHub environment (terraform/github.tf)
+    environment: aks
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the whole history, to merge the tagged commit into the branch production
+
+      - name: Sign in to Azure (OIDC, no stored passwords)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and publish the images
+        run: |
+          az acr login --name "${REGISTRY%%.*}"
+          for app in $APPS; do
+            docker build --tag "$REGISTRY/$app:production-$GITHUB_SHA" "$app"
+            docker push "$REGISTRY/$app:production-$GITHUB_SHA"
+          done
+
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Write the new tags to the branch production
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch production 2>/dev/null || git switch -c production
+          # The branch production is the tagged commit plus the image tags, so on a conflict keep its tags
+          git merge -X ours --no-edit "$GITHUB_SHA"
+          cd project/aks
+          for app in $APPS; do
+            kustomize edit set image "$app=$REGISTRY/$app:production-$GITHUB_SHA"
+          done
+          git add kustomization.yaml
+          git diff --cached --quiet || git commit -m "Release $GITHUB_REF_NAME to production ($GITHUB_SHA)"
+          git push origin production

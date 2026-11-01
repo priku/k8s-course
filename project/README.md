@@ -9,7 +9,8 @@ wiki-todo-generator/manifests/kustomization.yaml   │
 broadcaster/manifests/kustomization.yaml           ┘
 project/base/   → the three apps together
 project/k3d/    → base + Traefik Ingresses (local cluster, images from `k3d image import`)
-project/aks/    → base + Gateway API routing, images from the registry acrdwkakssc.azurecr.io
+project/aks/    → production: base + Gateway API routing and backups, images from the registry acrdwkakssc.azurecr.io
+project/staging/ → staging: base + Gateway API routing, images from the registry
 ```
 
 Only what differs between the clusters is in the overlays:
@@ -50,20 +51,34 @@ kubectl get gateway project-gateway -n project   # ADDRESS: the public IP of the
 
 Changing the storage class of an existing claim is not allowed, so a cluster that still has the claims from before exercise 3.5 (with `storageClassName: local-path`) needs them deleted first, together with the Postgres StatefulSet. This deletes the data.
 
-## GitOps (exercise 4.8)
+## GitOps and environments (exercises 4.8 and 4.9)
 
-Argo CD deploys the project to AKS. Nothing outside the cluster has access to it:
+Argo CD deploys the project to AKS. Nothing outside the cluster has access to it. There are two environments:
 
-1. A push to `main` that changes the project starts [`.github/workflows/project.yaml`](../.github/workflows/project.yaml).
-2. The workflow signs in to Azure with GitHub's OIDC token, builds the images and pushes them to ACR, tagged `project-<commit SHA>`.
-3. The workflow merges `main` into the branch `release` and writes the new tags to `project/aks/kustomization.yaml` there.
-4. [Argo CD](../argocd) notices the change within three minutes and applies `project/aks` from the branch `release` to the namespace `project`.
+| | Staging | Production |
+|---|---|---|
+| Goes there | Every commit to `main` that changes the project | Every tagged commit |
+| Workflow | [`project.yaml`](../.github/workflows/project.yaml) | [`project-production.yaml`](../.github/workflows/project-production.yaml) |
+| Namespace | `staging` | `project` |
+| Overlay | [`staging/`](staging) | [`aks/`](aks) |
+| Branch that Argo CD follows | `staging` | `production` |
+| Images | `<app>:main-<sha>` | `<app>:production-<sha>` |
+| [broadcaster](../broadcaster) | Only logs the messages, one replica | Sends them to the webhook, six replicas |
+| Database backups | No | Yes, every day |
 
-The Application has `prune` and `selfHeal`, so a resource removed from Git is removed from the cluster, and a manual change in the cluster is reverted. The database password is the exception: it is a SOPS-encrypted Secret and stays outside Argo CD. When the nightly stop has stopped the cluster nothing starts it any more, and Argo CD catches up after `az aks start`.
+1. The workflow signs in to Azure with GitHub's OIDC token, builds the images and pushes them to ACR.
+2. It merges the commit into the branch of the environment and writes the new tags to the overlay there.
+3. [Argo CD](../argocd) notices the change within three minutes and applies the overlay from that branch.
 
-The exercise allows deploying only `main`, so the branch environments of exercises 3.7 and 3.8 are gone: they would need the workflow to have access to the cluster. Their implementation is in the tags [3.7](https://github.com/priku/k8s-course/tree/3.7) and [3.8](https://github.com/priku/k8s-course/tree/3.8).
+Production has a branch of its own, so a commit to `main` changes nothing in production until it is tagged. The Applications have `prune` and `selfHeal`, so a resource removed from Git is removed from the cluster, and a manual change in the cluster is reverted. The database password is the exception: it is a SOPS-encrypted Secret, applied to each namespace outside Argo CD. When the nightly stop has stopped the cluster nothing starts it any more, and Argo CD catches up after `az aks start`.
 
-Tested: the first sync took over the running project without losing data, and a commit to `main` reached the cluster without any access from the workflow.
+The branch environments of exercises 3.7 and 3.8 are gone: they would need the workflow to have access to the cluster. Their implementation is in the tags [3.7](https://github.com/priku/k8s-course/tree/3.7) and [3.8](https://github.com/priku/k8s-course/tree/3.8).
+
+```bash
+kubectl get application -n argocd
+kubectl get gateway project-gateway -n staging   # ADDRESS: the public IP of staging
+kubectl logs -n staging deployment/broadcaster-dep | grep 'message logged'
+```
 
 | Course material (GCP) | Here (Azure) |
 |---|---|
@@ -73,7 +88,7 @@ Tested: the first sync took over the running project without losing data, and a 
 
 The frontend's Deployment uses the `Recreate` strategy: its image cache is a `ReadWriteOnce` Azure Disk that only one node can attach, and a rolling update would start the new pod, possibly on another node, before the old one lets go of the disk.
 
-Production images pile up, a set for every push to `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `project-*` images older than a week, keeping the five newest of each repository.
+Staging images pile up, a set for every push to `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `main-*` images older than a week, keeping the five newest of each repository. `production-*` images are kept, so that the purge can never delete what production runs.
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`.
 
@@ -170,6 +185,7 @@ The project's Postgres runs in the cluster as a StatefulSet with an Azure Disk (
 
 - `base/kustomization.yaml` - the apps and NATS
 - `k3d/` - the Ingresses for `/` and `/api` and the Traefik Middleware `strip-api`
-- `aks/kustomization.yaml` - the images from ACR and the database backups
-- `aks/gateway.yaml` - Gateway and HTTPRoute for `/` and `/api`
+- `aks/kustomization.yaml` - production: the images from ACR, Gateway and database backups
+- `staging/kustomization.yaml` - staging: the images from ACR and Gateway; broadcaster only logs
+- `components/gateway/` - Gateway and HTTPRoute for `/` and `/api`
 - `components/db-backup/` - the daily backup CronJob and its workload identity ServiceAccount, production only

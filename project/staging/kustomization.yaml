@@ -1,0 +1,52 @@
+# Staging in Azure Kubernetes Service (exercise 4.9). Differs from production (../aks):
+# the broadcaster only logs the messages and the database is not backed up.
+# .github/workflows/project.yaml writes the image tags to the branch staging, which Argo CD follows.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: staging
+resources:
+  - ../base
+components:
+  - ../components/gateway
+patches:
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        namespace: project
+        name: broadcaster-config
+      data:
+        BROADCAST_MODE: log
+        WEBHOOK_URL: ""
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        namespace: project
+        name: broadcaster-dep
+      spec:
+        replicas: 1
+  # No messages go out, so the receiver is not needed
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        namespace: project
+        name: webhook-receiver-dep
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        namespace: project
+        name: webhook-receiver-svc
+images:
+  - name: todo-project
+    newName: acrdwkakssc.azurecr.io/todo-project
+  - name: todo-backend
+    newName: acrdwkakssc.azurecr.io/todo-backend
+  - name: wiki-todo-generator
+    newName: acrdwkakssc.azurecr.io/wiki-todo-generator
+  - name: broadcaster
+    newName: acrdwkakssc.azurecr.io/broadcaster

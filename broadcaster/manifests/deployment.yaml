@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: broadcaster
-          image: broadcaster:v4.6
+          image: broadcaster:v4.9
           imagePullPolicy: IfNotPresent
           readinessProbe:
             httpGet:
