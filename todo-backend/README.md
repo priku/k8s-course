@@ -52,16 +52,16 @@ Deploy together with the todo project (see [its README](../todo-project/README.m
 
 ```bash
 kubectl apply -f ../manifests/project-namespace.yaml
-sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
+sops --decrypt ../../k8s-course-config/apps/todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
 docker build -t todo-backend:v4.6 .
 k3d image import todo-backend:v4.6
-kubectl apply -k ../project/k3d                                        # the whole project with Kustomize
+kubectl apply -k ../../k8s-course-config/overlays/k3d                  # the whole project with Kustomize
 curl http://localhost:8081/api/todos
 ```
 
 Traffic flow in k3d: `localhost:8081/api/todos` → Traefik Ingress `todo-backend-ingress` (`/api`) → Traefik Middleware `strip-api` removes `/api` → ClusterIP Service `todo-backend-svc:2345` → pod port `3000` → `/todos`.
 
-The Ingress refers to the Middleware as `project-strip-api@kubernetescrd` (`<namespace>-<name>`), so the annotation has to change whenever the namespace does. In AKS the HTTPRoute of [`../project/aks`](../project/aks/gateway.yaml) strips `/api` with a `URLRewrite` filter instead.
+The Ingress refers to the Middleware as `project-strip-api@kubernetescrd` (`<namespace>-<name>`), so the annotation has to change whenever the namespace does. In AKS the HTTPRoute of [`../project/aks`](https://github.com/priku/k8s-course-config/tree/main/components/gateway/gateway.yaml) strips `/api` with a `URLRewrite` filter instead.
 
 ## Logging
 
@@ -87,7 +87,7 @@ kubectl logs -n project deployment/todo-backend-dep | grep 'todo rejected'
 
 ## Database
 
-`manifests/statefulset.yaml` runs Postgres (`postgres:18.6-alpine3.24`) as the StatefulSet `postgres-ss` with one replica and the headless Service `postgres-svc`, the same way as the [ping-pong database](../ping-pong/README.md#database) in the `exercises` namespace. The two databases are separate: same names, different namespaces.
+[`apps/todo-backend/statefulset.yaml`](https://github.com/priku/k8s-course-config/tree/main/apps/todo-backend/statefulset.yaml) in the configuration repository runs Postgres (`postgres:18.6-alpine3.24`) as the StatefulSet `postgres-ss` with one replica and the headless Service `postgres-svc`, the same way as the [ping-pong database](../ping-pong/README.md#database) in the `exercises` namespace. The two databases are separate: same names, different namespaces.
 
 - The pod `postgres-ss-0` gets its own PersistentVolumeClaim `data-postgres-ss-0` from `volumeClaimTemplates` (the cluster's default storage class: `local-path` in k3d, an Azure Disk in AKS), mounted at `/var/lib/postgresql` as Postgres 18 expects.
 - The backend creates the table `todos` at startup. The database fills in `id` (`gen_random_uuid()`), `done` and `created_at`, and `INSERT ... RETURNING` gives the new row back. The text is passed as a query parameter, never put into the SQL.
@@ -98,7 +98,7 @@ How the backend reaches the database, without any connection string in the code:
 | Setting | Where | Used by |
 |---|---|---|
 | `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` | ConfigMap `todo-backend-config` | the backend (pgx reads the standard `PG*` variables); Postgres creates `POSTGRES_USER` and `POSTGRES_DB` from the same keys |
-| `POSTGRES_PASSWORD` | Secret `postgres-secret`, encrypted with SOPS in `secrets/postgres-secret.enc.yaml` | Postgres, and the backend as `PGPASSWORD` |
+| `POSTGRES_PASSWORD` | Secret `postgres-secret`, encrypted with SOPS in `apps/todo-backend/secrets/postgres-secret.enc.yaml` of the configuration repository | Postgres, and the backend as `PGPASSWORD` |
 
 The Secret is encrypted for the age key in [`../.sops.yaml`](../.sops.yaml); see the [ping-pong README](../ping-pong/README.md#database-password) for how SOPS is set up and how to make your own key and password.
 
@@ -114,7 +114,7 @@ todos=# SELECT * FROM todos;
 
 There are no defaults in the code; the app stops at startup if a variable is missing.
 
-- `PORT` - HTTP server port, `3000` in `manifests/deployment.yaml`
+- `PORT` - HTTP server port, `3000` in the Deployment
 - `TODO_MAX_LENGTH` - maximum todo length in characters, `140` in the ConfigMap `todo-backend-config`. The [todo project](../todo-project) reads the same key for its input, so the limit is changed in one place:
 
 ```bash
@@ -129,12 +129,7 @@ kubectl rollout restart deployment/todo-backend-dep deployment/todo-project-dep 
 
 - `main.go` - HTTP API with the todos in Postgres
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with `PORT=3000` and env from the ConfigMap
-- `manifests/configmap.yaml` - ConfigMap `todo-backend-config` with `TODO_MAX_LENGTH` and the database connection
-- `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`
-- `secrets/postgres-secret.enc.yaml` - SOPS-encrypted Secret with the database password
-- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
-- `manifests/kustomization.yaml` - Kustomize base with the files above; the routing of `/api` (Ingress and Middleware in k3d, HTTPRoute in AKS) is in [`../project`](../project)
+- The Kubernetes configuration is in [`apps/todo-backend`](https://github.com/priku/k8s-course-config/tree/main/apps/todo-backend) of the configuration repository
 
 ## Technologies
 

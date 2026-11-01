@@ -1,6 +1,6 @@
 # Argo CD
 
-[Argo CD](https://argo-cd.readthedocs.io/) keeps the AKS cluster in the state described in Git (exercises 4.7–). This is a pull deployment: GitHub Actions builds the images and writes their tags to Git, and Argo CD, running inside the cluster, applies the change. CI needs no access to the cluster for this.
+[Argo CD](https://argo-cd.readthedocs.io/) keeps the AKS cluster in the state described in Git (exercises 4.7–4.10). This is a pull deployment: GitHub Actions builds the images and writes their tags to Git, and Argo CD, running inside the cluster, applies the change. CI needs no access to the cluster for this.
 
 ```
 git push → GitHub Actions: build, push to ACR, write the tag to the branch release → Argo CD syncs the cluster
@@ -29,8 +29,8 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.pas
 | File | App | Follows |
 |---|---|---|
 | [`log-output.yaml`](log-output.yaml) | Log output and ping-pong in the namespace `exercises` | `log-output/manifests/aks` on the branch `release` |
-| [`project.yaml`](project.yaml) | Production of the todo project in the namespace `project` | `project/aks` on the branch `production` |
-| [`project-staging.yaml`](project-staging.yaml) | Staging of the todo project in the namespace `staging` | `project/staging` on the branch `staging` |
+| [`argocd/project.yaml`](https://github.com/priku/k8s-course-config/tree/main/argocd/project.yaml) in the configuration repository | Production of the todo project in the namespace `project` | `overlays/production` of [priku/k8s-course-config](https://github.com/priku/k8s-course-config) |
+| [`argocd/project-staging.yaml`](https://github.com/priku/k8s-course-config/tree/main/argocd/project-staging.yaml) in the configuration repository | Staging of the todo project in the namespace `staging` | `overlays/staging` of [priku/k8s-course-config](https://github.com/priku/k8s-course-config) |
 
 The Applications are applied once, and after that Git decides. Secrets are the exception: they are SOPS-encrypted in the repository and applied separately, since Argo CD has no way to decrypt them here.
 
@@ -41,14 +41,8 @@ kubectl apply -f log-output.yaml
 kubectl get application -n argocd
 ```
 
-## The release branches
+## The branch release
 
-`main` is protected and takes changes only through pull requests, so a workflow cannot commit image tags to it. Each workflow merges the new commit into its own branch and writes the tags there:
+Log output keeps its configuration in this repository. `main` is protected and takes changes only through pull requests, so its workflow cannot commit image tags to it: it merges `main` into the branch `release` and writes the tags there. Never commit to `release` by hand.
 
-| Branch | Updated by | Is |
-|---|---|---|
-| `release` | A push to `main` that changes Log output | `main` plus the tags of Log output |
-| `staging` | A push to `main` that changes the project | `main` plus the tags of staging |
-| `production` | Any tag | The tagged commit plus the tags of production |
-
-Production has a branch of its own so that a commit to `main` changes nothing in production, not even its manifests, until it is tagged. Never commit to these branches by hand.
+The todo project has a repository of its own for its configuration (exercise 4.10), so its workflows commit there instead.

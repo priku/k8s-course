@@ -17,7 +17,7 @@ The run ends when the todo is created; a failure exits with an error, and Kubern
 
 ## CronJob
 
-`manifests/cronjob.yaml` in the namespace `project`:
+[`apps/wiki-todo-generator/cronjob.yaml`](https://github.com/priku/k8s-course-config/tree/main/apps/wiki-todo-generator/cronjob.yaml) of the configuration repository, in the namespace `project`:
 
 - `schedule: "0 * * * *"` - every hour at minute 0
 - `concurrencyPolicy: Forbid` - a new run is skipped while the previous one is still going
@@ -27,7 +27,7 @@ The run ends when the todo is created; a failure exits with an error, and Kubern
 ```bash
 docker build -t wiki-todo-generator:v2.9 .
 k3d image import wiki-todo-generator:v2.9
-kubectl apply -k ../project/k3d   # deployed with the rest of the project (see ../project)
+kubectl apply -k ../../k8s-course-config/overlays/k3d   # deployed with the rest of the project (see ../project)
 kubectl get cronjob,jobs -n project
 
 # Run it now instead of waiting for the next hour
@@ -47,8 +47,7 @@ There are no defaults in the code; the job stops if a variable is missing.
 
 - `main.go` - Gets a random article and creates the todo
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24 with CA certificates)
-- `manifests/cronjob.yaml` - Hourly CronJob
-- `manifests/kustomization.yaml` - Kustomize base, part of [`../project`](../project)
+- The Kubernetes configuration is in [`apps/wiki-todo-generator`](https://github.com/priku/k8s-course-config/tree/main/apps/wiki-todo-generator) of the configuration repository
 
 ## Technologies
 
