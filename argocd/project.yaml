@@ -1,0 +1,21 @@
+# Exercise 4.8: Argo CD keeps the project in the state described on the branch release
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  namespace: argocd
+  name: project
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/priku/k8s-course
+    targetRevision: release
+    path: project/aks
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: project
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

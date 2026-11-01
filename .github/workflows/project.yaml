@@ -1,14 +1,12 @@
-name: Deploy the project
+name: Release the project
 
-# Exercise 3.6: every push that changes the project builds its images, pushes them to the
-# Azure Container Registry and deploys them to AKS with Kustomize.
-# Exercise 3.7: main goes to the namespace `project`, every other branch to its own namespace
-# named after the branch, so each branch has a separate environment.
+# Exercise 4.8: GitOps. Every push to main that changes the project builds its images, pushes them
+# to the Azure Container Registry and writes their tags to the branch release. Argo CD in the
+# cluster follows that branch, so this workflow never touches the cluster.
 on:
   push:
-    # Branches only: without a branch filter, pushing an exercise tag would deploy it too
     branches:
-      - '**'
+      - main
     paths:
       - 'todo-project/**'
       - 'todo-backend/**'
@@ -17,28 +15,26 @@ on:
       - 'db-backup/**'
       - 'project/**'
       - '.github/workflows/project.yaml'
-      # Documentation changes do not need a deployment
+      # Documentation changes do not need a new version
       - '!**/*.md'
 
 permissions:
-  contents: read
+  contents: write # to push to the branch release
   id-token: write # GitHub's OIDC token, exchanged for an Azure token by azure/login
 
-# Never run two deployments of the same branch at the same time
+# Two runs must not write to the branch release at the same time
 concurrency:
-  group: project-${{ github.ref_name }}
+  group: release
   cancel-in-progress: false
 
 env:
-  RESOURCE_GROUP: rg-dwk-aks-sc
-  CLUSTER: aks-dwk-sc
   REGISTRY: acrdwkakssc.azurecr.io
   KUSTOMIZE_VERSION: 5.8.3
-  SOPS_VERSION: v3.13.3
+  APPS: todo-project todo-backend wiki-todo-generator db-backup broadcaster
 
 jobs:
-  build-publish-deploy:
-    name: Build, Publish and Deploy
+  release:
+    name: Build, Publish and Release
     runs-on: ubuntu-latest
     # The Azure identity trusts only jobs in this GitHub environment (terraform/github.tf)
     environment: aks
@@ -46,6 +42,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the whole history, to merge main into the branch release
 
       - name: Sign in to Azure (OIDC, no stored passwords)
         uses: azure/login@v3
@@ -54,87 +52,30 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Start the cluster if the nightly stop has stopped it
-        run: |
-          state=$(az aks show -g "$RESOURCE_GROUP" -n "$CLUSTER" --query powerState.code -o tsv)
-          echo "Cluster power state: $state"
-          if [ "$state" = "Stopped" ]; then
-            az aks start -g "$RESOURCE_GROUP" -n "$CLUSTER"
-          fi
-
-      - name: Choose the namespace and the image tag
-        run: |
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-            namespace=project
-          else
-            # A namespace name: lowercase letters, digits and dashes, at most 63 characters
-            namespace=$(echo "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//' | cut -c1-63 | sed -E 's/-+$//')
-            case "$namespace" in
-              ""|project|default|exercises|monitoring|traefik|kube-*|aks-*|gatekeeper-*)
-                echo "::error::Branch '$GITHUB_REF_NAME' would deploy to the reserved namespace '$namespace'"
-                exit 1 ;;
-            esac
-          fi
-          echo "NAMESPACE=$namespace" >> "$GITHUB_ENV"
-          echo "IMAGE_TAG=$namespace-$GITHUB_SHA" >> "$GITHUB_ENV"
-          echo "Branch $GITHUB_REF_NAME → namespace $namespace"
-
       - name: Build and publish the images
         run: |
           az acr login --name "${REGISTRY%%.*}"
-          for app in todo-project todo-backend wiki-todo-generator db-backup broadcaster; do
-            docker build --tag "$REGISTRY/$app:$IMAGE_TAG" "$app"
-            docker push "$REGISTRY/$app:$IMAGE_TAG"
+          for app in $APPS; do
+            docker build --tag "$REGISTRY/$app:project-$GITHUB_SHA" "$app"
+            docker push "$REGISTRY/$app:project-$GITHUB_SHA"
           done
-
-      - name: Set up kubelogin
-        uses: azure/use-kubelogin@v1
-        with:
-          kubelogin-version: v0.2.21
-
-      - name: Get the AKS credentials
-        uses: azure/aks-set-context@v5
-        with:
-          resource-group: ${{ env.RESOURCE_GROUP }}
-          cluster-name: ${{ env.CLUSTER }}
-          use-kubelogin: 'true'
 
       - name: Set up Kustomize
         uses: imranismail/setup-kustomize@v3
         with:
           kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
 
-      - name: Set up SOPS
+      - name: Write the new tags to the branch release
         run: |
-          curl -fsSL -o sops "https://github.com/getsops/sops/releases/download/$SOPS_VERSION/sops-$SOPS_VERSION.linux.amd64"
-          sudo install -m 0755 sops /usr/local/bin/sops
-
-      - name: Deploy
-        env:
-          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
-        run: |
-          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-          # The database password, decrypted with the workflow's own age key, into the target namespace
-          sops --decrypt todo-backend/secrets/postgres-secret.enc.yaml \
-            | yq '.metadata.namespace = strenv(NAMESPACE)' | kubectl apply -f -
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch release 2>/dev/null || git switch -c release
+          # The branch release is main plus the image tags, so on a conflict keep its tags
+          git merge -X ours --no-edit "$GITHUB_SHA"
           cd project/aks
-          kustomize edit set namespace "$NAMESPACE"
-          # Only production backs up its database (exercise 3.10); branch environments do not
-          if [ "$NAMESPACE" = "project" ]; then
-            kustomize edit add component ../components/db-backup
-          fi
-          for app in todo-project todo-backend wiki-todo-generator db-backup broadcaster; do
-            kustomize edit set image "$app=$REGISTRY/$app:$IMAGE_TAG"
+          for app in $APPS; do
+            kustomize edit set image "$app=$REGISTRY/$app:project-$GITHUB_SHA"
           done
-          kustomize build . | kubectl apply -f -
-          kubectl rollout status statefulset postgres-ss -n "$NAMESPACE" --timeout=10m
-          kubectl rollout status deployment todo-backend-dep -n "$NAMESPACE" --timeout=10m
-          kubectl rollout status deployment todo-project-dep -n "$NAMESPACE" --timeout=10m
-          kubectl rollout status deployment broadcaster-dep -n "$NAMESPACE" --timeout=10m
-
-      - name: Show the address
-        run: |
-          kubectl wait --for=condition=programmed gateway/project-gateway -n "$NAMESPACE" --timeout=5m
-          address=$(kubectl get gateway project-gateway -n "$NAMESPACE" -o jsonpath='{.status.addresses[0].value}')
-          kubectl get pods,gateway -n "$NAMESPACE"
-          echo "Deployed ${GITHUB_SHA::7} of \`$GITHUB_REF_NAME\` to namespace \`$NAMESPACE\`: http://$address" >> "$GITHUB_STEP_SUMMARY"
+          git add kustomization.yaml
+          git commit -m "Release the project $GITHUB_SHA"
+          git push origin release
