@@ -1,0 +1,38 @@
+# The Service that callers use. The HTTPRoute in httproute.yaml decides where its traffic goes.
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: exercises
+  name: greeter-svc
+spec:
+  selector:
+    app: greeter
+  ports:
+    - port: 2345
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: exercises
+  name: greeter-svc-1
+spec:
+  selector:
+    app: greeter
+    version: v1
+  ports:
+    - port: 2345
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: exercises
+  name: greeter-svc-2
+spec:
+  selector:
+    app: greeter
+    version: v2
+  ports:
+    - port: 2345
+      targetPort: 3000

@@ -47,13 +47,13 @@ kubectl apply -f ../manifests/project-namespace.yaml
 Build, import and deploy the whole project with Kustomize (see [`../project`](../project) for the layout and for Azure Kubernetes Service):
 
 ```bash
-sops --decrypt ../todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
+sops --decrypt ../../k8s-course-config/apps/todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
 docker build -t todo-project:v4.5 .
 docker build -t todo-backend:v4.6 ../todo-backend
 docker build -t wiki-todo-generator:v2.9 ../wiki-todo-generator
-docker build -t broadcaster:v4.6 ../broadcaster
-k3d image import todo-project:v4.5 todo-backend:v4.6 wiki-todo-generator:v2.9 broadcaster:v4.6
-kubectl apply -k ../project/k3d   # frontend, backend + Postgres, CronJob, Ingresses
+docker build -t broadcaster:v4.9 ../broadcaster
+k3d image import todo-project:v4.5 todo-backend:v4.6 wiki-todo-generator:v2.9 broadcaster:v4.9
+kubectl apply -k ../../k8s-course-config/overlays/k3d   # frontend, backend + Postgres, CronJob, Ingresses
 # Open http://localhost:8081, add a todo and reload: it stays in the list
 kubectl get all,ingress,pvc -n project
 ```
@@ -92,8 +92,8 @@ The app has no defaults in the code: every setting is an env variable, and the a
 
 | Variable | Value | Set in |
 |---|---|---|
-| `PORT` | `3000` | `manifests/deployment.yaml` (belongs with the Service's `targetPort`) |
-| `IMAGE_DIR` | `/usr/src/app/files` | `manifests/deployment.yaml` (belongs with the `volumeMounts` path) |
+| `PORT` | `3000` | The Deployment (belongs with the Service's `targetPort`) |
+| `IMAGE_DIR` | `/usr/src/app/files` | The Deployment (belongs with the `volumeMounts` path) |
 | `IMAGE_URL` | `https://picsum.photos/1200` | ConfigMap `todo-project-config` |
 | `IMAGE_REFRESH_INTERVAL` | `10m` (a Go duration) | ConfigMap `todo-project-config` |
 | `BACKEND_URL` | `/api` (todo-backend as the browser sees it) | ConfigMap `todo-project-config` |
@@ -113,11 +113,7 @@ kubectl rollout restart deployment/todo-project-dep -n project
 
 - `main.go` - HTTP server, image download and caching, page template with the todo list JavaScript
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with `PORT` and `IMAGE_DIR`, env from the ConfigMaps, image cache volume at `/usr/src/app/files`
-- `manifests/configmap.yaml` - ConfigMap `todo-project-config` (image URL and interval, backend URL)
-- `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
-- `manifests/kustomization.yaml` - Kustomize base with the files above; the routing (Ingress in k3d, Gateway in AKS) is in [`../project`](../project)
-- `manifests/persistentvolumeclaim.yaml` - 100Mi claim for the image cache
+- The Kubernetes configuration is in [`apps/todo-project`](https://github.com/priku/k8s-course-config/tree/main/apps/todo-project) of the configuration repository
 
 ## Technologies
 

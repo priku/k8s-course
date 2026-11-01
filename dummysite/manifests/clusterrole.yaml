@@ -1,0 +1,19 @@
+# Only what the controller uses: it reads DummySites, and creates or updates the rest with
+# server-side apply, which needs create and patch. It never deletes: owner references do that.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dummysite-controller-role
+rules:
+  - apiGroups: ["stable.dwk"]
+    resources: ["dummysites"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["create", "patch"]

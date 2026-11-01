@@ -1,9 +1,9 @@
-name: Release the project
+name: Release the project to staging
 
-# Exercise 4.8: GitOps. Every push to main that changes the project builds its images, pushes them
-# to the Azure Container Registry and writes their tags to the branch release. Argo CD in the
-# cluster follows that branch, so this workflow never touches the cluster.
-# The image tag project-<sha> is the form that the weekly ACR purge recognizes.
+# Exercises 4.8-4.10: GitOps. Every push to main that changes the project builds its images, pushes
+# them to the Azure Container Registry and writes their tags to the configuration repository
+# priku/k8s-course-config. Argo CD in the cluster follows that repository, so this workflow never
+# touches the cluster. The image tag main-<sha> is a form that the weekly ACR purge recognizes.
 on:
   push:
     branches:
@@ -13,25 +13,23 @@ on:
       - 'todo-backend/**'
       - 'wiki-todo-generator/**'
       - 'broadcaster/**'
-      - 'db-backup/**'
-      - 'project/**'
       - '.github/workflows/project.yaml'
       # Documentation changes do not need a new version
       - '!**/*.md'
 
 permissions:
-  contents: write # to push to the branch release
+  contents: read
   id-token: write # GitHub's OIDC token, exchanged for an Azure token by azure/login
 
-# Two runs must not write to the branch release at the same time
+# Two runs must not write to the configuration repository at the same time
 concurrency:
-  group: release
+  group: config-repository
   cancel-in-progress: false
 
 env:
   REGISTRY: acrdwkakssc.azurecr.io
   KUSTOMIZE_VERSION: 5.8.3
-  APPS: todo-project todo-backend wiki-todo-generator db-backup broadcaster
+  APPS: todo-project todo-backend wiki-todo-generator broadcaster
 
 jobs:
   release:
@@ -43,8 +41,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Checkout the configuration repository
+        uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the whole history, to merge main into the branch release
+          repository: priku/k8s-course-config
+          ssh-key: ${{ secrets.CONFIG_REPO_DEPLOY_KEY }} # a deploy key that can write only to that repository
+          path: config
 
       - name: Sign in to Azure (OIDC, no stored passwords)
         uses: azure/login@v3
@@ -57,8 +60,8 @@ jobs:
         run: |
           az acr login --name "${REGISTRY%%.*}"
           for app in $APPS; do
-            docker build --tag "$REGISTRY/$app:project-$GITHUB_SHA" "$app"
-            docker push "$REGISTRY/$app:project-$GITHUB_SHA"
+            docker build --tag "$REGISTRY/$app:main-$GITHUB_SHA" "$app"
+            docker push "$REGISTRY/$app:main-$GITHUB_SHA"
           done
 
       - name: Set up Kustomize
@@ -66,17 +69,14 @@ jobs:
         with:
           kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
 
-      - name: Write the new tags to the branch release
+      - name: Write the new tags to the configuration repository
+        working-directory: config/overlays/staging
         run: |
+          for app in $APPS; do
+            kustomize edit set image "$app=$REGISTRY/$app:main-$GITHUB_SHA"
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch release 2>/dev/null || git switch -c release
-          # The branch release is main plus the image tags, so on a conflict keep its tags
-          git merge -X ours --no-edit "$GITHUB_SHA"
-          cd project/aks
-          for app in $APPS; do
-            kustomize edit set image "$app=$REGISTRY/$app:project-$GITHUB_SHA"
-          done
           git add kustomization.yaml
-          git commit -m "Release the project $GITHUB_SHA"
-          git push origin release
+          git diff --cached --quiet || git commit -m "Release $GITHUB_SHA to staging"
+          git push origin main

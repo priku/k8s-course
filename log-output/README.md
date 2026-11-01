@@ -28,6 +28,7 @@ Ping / Pongs: 3
 - **3.3:** Behind a Gateway API Gateway and HTTPRoute instead of the Ingress
 - **4.1:** Readiness probe on the reader: ready only when ping-pong answers with the count
 - **4.7:** In AKS the app is deployed with GitOps: Argo CD follows the branch `release`
+- **5.3:** In k3d the app runs in the [service mesh](../service-mesh) and shows a greeting from [greeter](../greeter); in AKS `GREETER_URL` is not set, so there is no greeting
 
 ## Deploying to Kubernetes (k3d)
 
@@ -47,8 +48,8 @@ Build, import and deploy together with ping-pong:
 
 ```bash
 docker build -t log-writer:v1.11 writer
-docker build -t log-reader:v4.1 reader
-k3d image import log-writer:v1.11 log-reader:v4.1
+docker build -t log-reader:v5.3 reader
+k3d image import log-writer:v1.11 log-reader:v5.3
 kubectl apply -f manifests/
 kubectl apply -f ../ping-pong/manifests/   # ping-pong + shared Ingress app-ingress
 # Open http://localhost:8081/log-output, call http://localhost:8081/pingpong and reload
@@ -80,7 +81,7 @@ kubectl run busybox --image=busybox --rm -it --restart=Never -- wget -qO - http:
 ```bash
 # Images for the AKS nodes (amd64), built in Azure by ACR Tasks
 az acr build --registry acrdwkakssc --image log-writer:v1.11 --platform linux/amd64 writer
-az acr build --registry acrdwkakssc --image log-reader:v4.1 --platform linux/amd64 reader
+az acr build --registry acrdwkakssc --image log-reader:v5.3 --platform linux/amd64 reader
 
 kubectl config use-context aks-dwk-sc
 kubectl apply -f manifests/aks/

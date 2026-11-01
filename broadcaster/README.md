@@ -18,9 +18,9 @@ todo-backend → NATS, subject "todos" → broadcaster (6 replicas, queue group)
 
 - A failed send is logged and not retried. The exercise accepts a missing message when something is broken, but not a duplicate.
 
-The exercise's external service here is [`mendhak/http-https-echo`](https://github.com/mendhak/docker-http-https-echo) in [`manifests/webhook-receiver.yaml`](manifests/webhook-receiver.yaml), which logs what it gets. It needs no accounts, and the project's messages stay inside the cluster. To send them elsewhere, change `WEBHOOK_URL` in [`manifests/configmap.yaml`](manifests/configmap.yaml) to a URL that takes this payload.
+The exercise's external service here is [`mendhak/http-https-echo`](https://github.com/mendhak/docker-http-https-echo) in [`apps/broadcaster/webhook-receiver.yaml`](https://github.com/priku/k8s-course-config/tree/main/apps/broadcaster/webhook-receiver.yaml) of the configuration repository, which logs what it gets. It needs no accounts, and the project's messages stay inside the cluster. To send them elsewhere, change `WEBHOOK_URL` in [`apps/broadcaster/configmap.yaml`](https://github.com/priku/k8s-course-config/tree/main/apps/broadcaster/configmap.yaml) to a URL that takes this payload.
 
-NATS itself is in [`../project/base/nats.yaml`](../project/base/nats.yaml), a plain Deployment instead of the course's Helm chart. Every environment gets its own that way, so its messages cannot reach the broadcaster of another environment.
+NATS itself is in [`base/nats.yaml`](https://github.com/priku/k8s-course-config/tree/main/base/nats.yaml) of the configuration repository, a plain Deployment instead of the course's Helm chart. Every environment gets its own that way, so its messages cannot reach the broadcaster of another environment.
 
 ## Trying it
 
@@ -45,7 +45,8 @@ kubectl logs -n project deployment/webhook-receiver-dep | grep '"body"'
 |---|---|---|
 | `PORT` | `3000` | Deployment |
 | `NATS_URL` | `nats://nats-svc:4222` | ConfigMap `broadcaster-config` |
-| `WEBHOOK_URL` | `http://webhook-receiver-svc:2345/` | ConfigMap `broadcaster-config` |
+| `BROADCAST_MODE` | `webhook` sends the messages, `log` only logs them (staging, exercise 4.9) | ConfigMap `broadcaster-config` |
+| `WEBHOOK_URL` | `http://webhook-receiver-svc:2345/` (not needed in `log` mode) | ConfigMap `broadcaster-config` |
 
 ## Health checks
 
@@ -57,9 +58,7 @@ kubectl logs -n project deployment/webhook-receiver-dep | grep '"body"'
 - `main.go` - NATS subscription, message format and the webhook call
 - `main_test.go` - Tests for the message format and the webhook call
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with 6 replicas
-- `manifests/configmap.yaml` - The NATS and webhook addresses
-- `manifests/webhook-receiver.yaml` - The stand-in for the external chat service
+- The Kubernetes configuration is in [`apps/broadcaster`](https://github.com/priku/k8s-course-config/tree/main/apps/broadcaster) of the configuration repository
 
 ## Technologies
 

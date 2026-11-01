@@ -54,3 +54,16 @@ func TestSendReportsWebhookFailure(t *testing.T) {
 		t.Error("send returned no error for a 500 answer")
 	}
 }
+
+func TestLogModeSendsNothing(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer server.Close()
+
+	handleMessage([]byte(`{"action":"created","todo":{"text":"Buy milk"}}`), "")
+	if called {
+		t.Error("a message was sent in log mode")
+	}
+}

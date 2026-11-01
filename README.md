@@ -64,3 +64,12 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 - [4.6.](https://github.com/priku/k8s-course/tree/4.6/broadcaster)
 - [4.7.](https://github.com/priku/k8s-course/tree/4.7/log-output#gitops-exercise-47) ([argocd](https://github.com/priku/k8s-course/tree/4.7/argocd))
 - [4.8.](https://github.com/priku/k8s-course/tree/4.8/project#gitops-exercise-48)
+- [4.9.](https://github.com/priku/k8s-course/tree/4.9/project#gitops-and-environments-exercises-48-and-49)
+- [4.10.](https://github.com/priku/k8s-course-config/tree/4.10) ([code](https://github.com/priku/k8s-course/tree/4.10/project#gitops-and-environments-exercises-48410))
+
+### Chapter 6
+
+- [5.1.](https://github.com/priku/k8s-course/tree/5.1/dummysite)
+- [5.2.](https://github.com/priku/k8s-course/tree/5.2/service-mesh)
+- [5.3.](https://github.com/priku/k8s-course/tree/5.3/service-mesh#log-output-in-the-mesh-exercise-53) ([greeter](https://github.com/priku/k8s-course/tree/5.3/greeter))
+- [5.4.](https://github.com/priku/k8s-course/tree/5.4/wikipedia)

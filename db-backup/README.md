@@ -25,7 +25,7 @@ The material describes two ways to give the job access: a service account key st
 | `roles/storage.objectCreator`, `objectViewer` | `Storage Blob Data Contributor` on the container |
 | Workload Identity for GKE | Microsoft Entra Workload ID for AKS: a federated credential for `system:serviceaccount:project:db-backup` |
 
-The Azure resources are in [`../terraform/backup.tf`](../terraform/backup.tf); the CronJob and the ServiceAccount are the Kustomize component [`../project/components/db-backup`](../project/components/db-backup).
+The Azure resources are in [`../terraform/backup.tf`](../terraform/backup.tf); the CronJob and the ServiceAccount are the Kustomize component [`components/db-backup`](https://github.com/priku/k8s-course-config/tree/main/components/db-backup) of the configuration repository.
 
 ## Schedule
 
