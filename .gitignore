@@ -6,9 +6,6 @@
 *.swo
 *~
 
-# Personal notes
-SUBMISSION_GUIDE.md
-
 # OS files
 .DS_Store
 Thumbs.db
@@ -19,14 +16,6 @@ Thumbs.db
 .env.*.local
 **/.env
 **/secret.yaml
-
-# Dependencies
-node_modules/
-__pycache__/
-*.pyc
-.Python
-venv/
-ENV/
 
 # Build outputs
 dist/
@@ -54,7 +43,6 @@ logs/
 coverage/
 .coverage
 *.cover
-.pytest_cache/
 
 # Temporary files
 *.tmp
