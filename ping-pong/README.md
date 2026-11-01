@@ -15,6 +15,7 @@ A Go HTTP server that responds to `GET /` with `pong N`, where N is the number o
 - **3.3:** The Ingress is replaced with the Gateway API: a Gateway and an HTTPRoute
 - **3.4:** The app answers at `/`; the HTTPRoute (and in k3d the Ingress) rewrites `/pingpong` to `/`
 - **4.1:** Readiness probe on `/healthz`: the pod is ready only when the database answers
+- **4.4:** In k3d the Deployment is replaced with an Argo Rollouts `Rollout`: a canary release, reverted if the CPU usage of the namespace goes over a limit
 
 ## Running locally
 
@@ -44,7 +45,7 @@ kubectl apply -f ../manifests/exercises-namespace.yaml
 sops --decrypt secrets/postgres-secret.enc.yaml | kubectl apply -f -
 docker build -t ping-pong:v4.1 .
 k3d image import ping-pong:v4.1
-kubectl apply -f manifests/               # ping-pong, Postgres StatefulSet, Ingress
+kubectl apply -f manifests/               # ping-pong, Postgres StatefulSet, Ingress (needs Argo Rollouts, see below)
 kubectl apply -f ../log-output/manifests/
 curl http://localhost:8081/pingpong   # pong 0
 kubectl get all -n exercises
@@ -84,7 +85,7 @@ The first start can end in one restart: attaching the Azure Disk to Postgres may
 
 ## Readiness (exercise 4.1)
 
-`GET /healthz` answers `200 ok` only when the database answers, otherwise `503`. The Deployment's readiness probe calls it every 5 seconds, so without a database the pod runs but is not ready (`0/1`), and the Service sends it no traffic.
+`GET /healthz` answers `200 ok` only when the database answers, otherwise `503`. The readiness probe calls it every 5 seconds, so without a database the pod runs but is not ready (`0/1`), and the Service sends it no traffic.
 
 For that, ping-pong no longer gives up when the database is missing at startup. It starts serving right away and connects in the background every 5 seconds until the database answers and the `counter` table exists; until then `/`, `/count` and `/healthz` answer `503`. (Before, it waited a minute and then crashed, so a missing database meant a crash loop instead of a not-ready pod.)
 
@@ -96,6 +97,51 @@ kubectl apply -f manifests/deployment.yaml -f ../log-output/manifests/deployment
 kubectl get pods -n exercises    # ping-pong 0/1, log-output 1/2 (Running, no restarts)
 kubectl apply -f manifests/statefulset.yaml
 kubectl get pods -n exercises    # a moment later ping-pong 1/1, log-output 2/2
+```
+
+
+## Canary release (exercise 4.4)
+
+In k3d, [`manifests/rollout.yaml`](manifests/rollout.yaml) is an [Argo Rollouts](https://argoproj.github.io/rollouts/) `Rollout` instead of a Deployment. The AKS manifests in `manifests/aks/` are still a plain Deployment.
+
+```bash
+kubectl create namespace argo-rollouts
+kubectl apply --server-side -n argo-rollouts \
+  -f https://github.com/argoproj/argo-rollouts/releases/download/v1.10.1/install.yaml
+```
+
+An update first moves one of the two pods to the new version. Then the analysis in [`manifests/analysistemplate.yaml`](manifests/analysistemplate.yaml) asks [Prometheus](../monitoring) every 30 seconds, ten times, for the CPU usage of all containers in the namespace:
+
+```promql
+scalar(sum(rate(container_cpu_usage_seconds_total{namespace="exercises", container!=""}[2m])))
+```
+
+The limit is `result < 0.1` CPU cores; the namespace normally uses about 0.001. A single measurement over the limit fails the analysis, and the Rollout aborts and goes back to the old version. If all ten pass, the rest of the pods are updated.
+
+Tested in k3d, using two tags of the same image, since only the update itself matters here:
+
+| Test | Measured | Result |
+|---|---|---|
+| Limit set too low (`result < 0.00001`), `v4.1` → `v4.4` | 0.0005 | Failed at the first measurement, aborted, both pods stayed on `v4.1` |
+| Limit `0.1`, `v4.1` → `v4.4` | 0.0009–0.0015, ten times | Passed after 4 min 44 s, both pods on `v4.4` |
+| Limit `0.1`, a pod burning CPU in the namespace, `v4.4` → `v4.1` | 1.0 | Failed at the first measurement, aborted, both pods stayed on `v4.4` |
+
+To try the first one:
+
+```bash
+kubectl patch analysistemplate cpu-usage -n exercises --type=json \
+  -p '[{"op":"replace","path":"/spec/metrics/0/successCondition","value":"result < 0.00001"}]'
+docker tag ping-pong:v4.1 ping-pong:v4.4 && k3d image import ping-pong:v4.4
+kubectl patch rollout ping-pong-dep -n exercises --type=json \
+  -p '[{"op":"replace","path":"/spec/template/spec/containers/0/image","value":"ping-pong:v4.4"}]'
+kubectl get rollout,analysisrun -n exercises --watch
+kubectl get rollout ping-pong-dep -n exercises -o jsonpath='{.status.message}'   # RolloutAborted: ...
+```
+
+An aborted Rollout stays `Degraded` until the image changes or the update is tried again. The [kubectl plugin](https://argoproj.github.io/argo-rollouts/installation/#kubectl-plugin-installation) does that with `kubectl argo rollouts retry rollout ping-pong-dep`, and without the plugin:
+
+```bash
+kubectl patch rollout ping-pong-dep -n exercises --subresource=status --type=merge -p '{"status":{"abort":false}}'
 ```
 
 ## Database
