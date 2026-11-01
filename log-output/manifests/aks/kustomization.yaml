@@ -10,6 +10,6 @@ resources:
 - ../../../ping-pong/manifests/aks
 images:
 - name: acrdwkakssc.azurecr.io/log-reader
-  newTag: dfd0eb9f37ddfd6074bdc6a69ba4f29a819f3dc6
+  newTag: 5ee237a84b4c7132536713afb042666db37aada2
 - name: acrdwkakssc.azurecr.io/log-writer
-  newTag: dfd0eb9f37ddfd6074bdc6a69ba4f29a819f3dc6
+  newTag: 5ee237a84b4c7132536713afb042666db37aada2
