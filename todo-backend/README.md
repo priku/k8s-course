@@ -61,7 +61,7 @@ curl http://localhost:8081/api/todos
 
 Traffic flow in k3d: `localhost:8081/api/todos` → Traefik Ingress `todo-backend-ingress` (`/api`) → Traefik Middleware `strip-api` removes `/api` → ClusterIP Service `todo-backend-svc:2345` → pod port `3000` → `/todos`.
 
-The Ingress refers to the Middleware as `project-strip-api@kubernetescrd` (`<namespace>-<name>`), so the annotation has to change whenever the namespace does. In AKS the HTTPRoute of [`../project/aks`](https://github.com/priku/k8s-course-config/tree/main/components/gateway/gateway.yaml) strips `/api` with a `URLRewrite` filter instead.
+The Ingress refers to the Middleware as `project-strip-api@kubernetescrd` (`<namespace>-<name>`), so the annotation has to change whenever the namespace does. In AKS the HTTPRoute of [`components/gateway/gateway.yaml`](https://github.com/priku/k8s-course-config/tree/main/components/gateway/gateway.yaml) of the configuration repository strips `/api` with a `URLRewrite` filter instead.
 
 ## Logging
 
