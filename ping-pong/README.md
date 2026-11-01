@@ -16,6 +16,7 @@ A Go HTTP server that responds to `GET /` with `pong N`, where N is the number o
 - **3.4:** The app answers at `/`; the HTTPRoute (and in k3d the Ingress) rewrites `/pingpong` to `/`
 - **4.1:** Readiness probe on `/healthz`: the pod is ready only when the database answers
 - **4.4:** In k3d the Deployment is replaced with an Argo Rollouts `Rollout`: a canary release, reverted if the CPU usage of the namespace goes over a limit
+- **5.7:** A serverless version with [Knative](../knative): `manifests/knative/service.yaml`
 
 ## Running locally
 
