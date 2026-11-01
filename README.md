@@ -70,3 +70,4 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 ### Chapter 6
 
 - [5.1.](https://github.com/priku/k8s-course/tree/5.1/dummysite)
+- [5.2.](https://github.com/priku/k8s-course/tree/5.2/service-mesh)
