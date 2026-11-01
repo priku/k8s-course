@@ -29,6 +29,7 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.pas
 | File | App | Follows |
 |---|---|---|
 | [`log-output.yaml`](log-output.yaml) | Log output and ping-pong in the namespace `exercises` | `log-output/manifests/aks` on the branch `release` |
+| [`project.yaml`](project.yaml) | The todo project in the namespace `project` | `project/aks` on the branch `release` |
 
 The Applications are applied once, and after that Git decides. Secrets are the exception: they are SOPS-encrypted in the repository and applied separately, since Argo CD has no way to decrypt them here.
 
