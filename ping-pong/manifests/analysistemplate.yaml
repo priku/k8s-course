@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  namespace: exercises
+  name: cpu-usage
+spec:
+  metrics:
+    - name: cpu-usage
+      # 10 measurements, 30 seconds apart, each over the last 2 minutes: about 5 minutes in all
+      interval: 30s
+      count: 10
+      # One measurement over the limit fails the analysis and reverts the update
+      failureLimit: 0
+      # In CPU cores. The namespace normally uses about 0.001, so 0.1 means something is clearly wrong.
+      successCondition: result < 0.1
+      provider:
+        prometheus:
+          address: http://prom-prometheus-server.monitoring.svc.cluster.local
+          # container!="" leaves out the pod-level sums, which would count every container twice
+          query: |
+            scalar(sum(rate(container_cpu_usage_seconds_total{namespace="exercises", container!=""}[2m])))
