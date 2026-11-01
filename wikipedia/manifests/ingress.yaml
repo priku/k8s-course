@@ -1,0 +1,18 @@
+# The page is at http://wikipedia.localhost:8081 in the k3d cluster
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: wikipedia
+  name: wikipedia-ingress
+spec:
+  rules:
+    - host: wikipedia.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wikipedia-svc
+                port:
+                  number: 80
