@@ -76,7 +76,7 @@ count(kube_pod_info{namespace="monitoring", created_by_kind="StatefulSet"})
 
 ![Prometheus: one pod created by a StatefulSet in the namespace monitoring](images/prometheus-statefulset-pods.png)
 
-The result here is **1**, not 3 as in the course material, for two reasons: the course installs the stack into a namespace called `prometheus`, and it uses the `kube-prometheus-stack` chart, where Prometheus and Alertmanager themselves run as StatefulSets. This stack (the `prometheus` chart, see the values above) runs Prometheus as a Deployment and has Alertmanager turned off, so the only StatefulSet pod in `monitoring` is `loki-0`. Broken down by StatefulSet, and over the whole cluster:
+The result here is **1**, not 3 as in the course material. The query is the same; the difference is Loki. With the chart's defaults it has three StatefulSets (`loki`, `loki-chunks-cache` and `loki-results-cache`), but [`loki-values.yaml`](loki-values.yaml) turns the two memcached caches off, since they do not fit on the k3d nodes (see [Values files](#values-files)). The Prometheus chart itself creates no StatefulSets here, so the only StatefulSet pod in `monitoring` is `loki-0`. The exercise text says "prometheus namespace", but its own listing and this stack use `monitoring`. Broken down by StatefulSet, and over the whole cluster:
 
 ```promql
 count by (created_by_name) (kube_pod_info{namespace="monitoring", created_by_kind="StatefulSet"})   # loki: 1
