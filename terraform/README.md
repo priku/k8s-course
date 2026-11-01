@@ -4,7 +4,7 @@ The course material uses Google Kubernetes Engine in Chapter 4, and also allows 
 
 | Resource | Name | Notes |
 |---|---|---|
-| AKS cluster | `aks-dwk-sc` | Kubernetes 1.37, Free tier, 2 × `Standard_D2as_v7` (2 vCPU, 8 GiB), Azure CNI Overlay |
+| AKS cluster | `aks-dwk-sc` | Kubernetes 1.37, Free tier, 2–3 × `Standard_D2as_v7` (2 vCPU, 8 GiB, cluster autoscaler), Azure CNI Overlay |
 | Node resource group | `rg-dwk-aks-nodes-sc` | Created by AKS for the VMs, disks, load balancer and public IPs |
 | Container registry | `acrdwkakssc.azurecr.io` | Basic SKU, no admin user; the nodes pull with their kubelet identity (`AcrPull`) |
 | Logic App | `logic-aks-dwk-sc-nightly-stop` | Stops the cluster every night at 23:59 Finnish time |
@@ -84,7 +84,7 @@ A stopped cluster keeps its configuration, Kubernetes objects and persistent dis
 
 | Item | Price (Sweden Central) |
 |---|---|
-| 2 × `Standard_D2as_v7` | 0.085 EUR/h each, only while running |
+| 2–3 × `Standard_D2as_v7` | 0.085 EUR/h each, only while running; the third node only while pods do not fit on two |
 | Container registry Basic | about 0.15 EUR/day |
 | Public IPs, persistent disks, state storage | a few euros per month |
 | AKS control plane (Free tier) | free |
