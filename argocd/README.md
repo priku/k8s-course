@@ -29,7 +29,8 @@ kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.pas
 | File | App | Follows |
 |---|---|---|
 | [`log-output.yaml`](log-output.yaml) | Log output and ping-pong in the namespace `exercises` | `log-output/manifests/aks` on the branch `release` |
-| [`project.yaml`](project.yaml) | The todo project in the namespace `project` | `project/aks` on the branch `release` |
+| [`project.yaml`](project.yaml) | Production of the todo project in the namespace `project` | `project/aks` on the branch `production` |
+| [`project-staging.yaml`](project-staging.yaml) | Staging of the todo project in the namespace `staging` | `project/staging` on the branch `staging` |
 
 The Applications are applied once, and after that Git decides. Secrets are the exception: they are SOPS-encrypted in the repository and applied separately, since Argo CD has no way to decrypt them here.
 
@@ -40,6 +41,14 @@ kubectl apply -f log-output.yaml
 kubectl get application -n argocd
 ```
 
-## The branch release
+## The release branches
 
-`main` is protected and takes changes only through pull requests, so a workflow cannot commit image tags to it. The workflow merges `main` into the branch `release` and writes the tags there, so `release` is always `main` plus the current image tags. Never commit to `release` by hand.
+`main` is protected and takes changes only through pull requests, so a workflow cannot commit image tags to it. Each workflow merges the new commit into its own branch and writes the tags there:
+
+| Branch | Updated by | Is |
+|---|---|---|
+| `release` | A push to `main` that changes Log output | `main` plus the tags of Log output |
+| `staging` | A push to `main` that changes the project | `main` plus the tags of staging |
+| `production` | Any tag | The tagged commit plus the tags of production |
+
+Production has a branch of its own so that a commit to `main` changes nothing in production, not even its manifests, until it is tagged. Never commit to these branches by hand.

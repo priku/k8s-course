@@ -60,7 +60,16 @@ func main() {
 
 	port := requireEnv("PORT")
 	natsURL := requireEnv("NATS_URL")
-	webhookURL := requireEnv("WEBHOOK_URL")
+
+	// Exercise 4.9: staging only logs the messages. WEBHOOK_URL is empty in that mode.
+	var webhookURL string
+	switch mode := requireEnv("BROADCAST_MODE"); mode {
+	case "webhook":
+		webhookURL = requireEnv("WEBHOOK_URL")
+	case "log":
+	default:
+		fatal("Invalid BROADCAST_MODE: must be webhook or log", "value", mode)
+	}
 
 	// Keep trying forever: without NATS the pod runs but is not ready, instead of crashing
 	nc, err := nats.Connect(natsURL,
@@ -121,6 +130,10 @@ func handleMessage(data []byte, webhookURL string) {
 		return
 	}
 	message := formatMessage(event)
+	if webhookURL == "" {
+		slog.Info("message logged", "message", message)
+		return
+	}
 	if err := send(webhookURL, message); err != nil {
 		slog.Error("Could not send the message", "message", message, "error", err)
 		return

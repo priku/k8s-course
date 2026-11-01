@@ -1,12 +1,13 @@
-# Azure Kubernetes Service: images from the course registry, Gateway API routing, database backups.
-# The image tags here are placeholders: .github/workflows/project.yaml writes the real ones to
-# the branch release, which Argo CD follows (exercise 4.8).
+# Production in Azure Kubernetes Service: images from the course registry, Gateway API routing,
+# database backups. The image tags here are placeholders:
+# .github/workflows/project-production.yaml writes the real ones to the branch production, which
+# Argo CD follows (exercises 4.8 and 4.9).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../base
-  - gateway.yaml
 components:
+  - ../components/gateway
   - ../components/db-backup
 images:
   - name: todo-project
@@ -17,7 +18,7 @@ images:
     newTag: v4.6
   - name: broadcaster
     newName: acrdwkakssc.azurecr.io/broadcaster
-    newTag: v4.6
+    newTag: v4.9
   - name: wiki-todo-generator
     newName: acrdwkakssc.azurecr.io/wiki-todo-generator
     newTag: v2.9

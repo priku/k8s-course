@@ -51,8 +51,8 @@ sops --decrypt ../todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply 
 docker build -t todo-project:v4.5 .
 docker build -t todo-backend:v4.6 ../todo-backend
 docker build -t wiki-todo-generator:v2.9 ../wiki-todo-generator
-docker build -t broadcaster:v4.6 ../broadcaster
-k3d image import todo-project:v4.5 todo-backend:v4.6 wiki-todo-generator:v2.9 broadcaster:v4.6
+docker build -t broadcaster:v4.9 ../broadcaster
+k3d image import todo-project:v4.5 todo-backend:v4.6 wiki-todo-generator:v2.9 broadcaster:v4.9
 kubectl apply -k ../project/k3d   # frontend, backend + Postgres, CronJob, Ingresses
 # Open http://localhost:8081, add a todo and reload: it stays in the list
 kubectl get all,ingress,pvc -n project

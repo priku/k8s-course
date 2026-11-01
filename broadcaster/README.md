@@ -45,7 +45,8 @@ kubectl logs -n project deployment/webhook-receiver-dep | grep '"body"'
 |---|---|---|
 | `PORT` | `3000` | Deployment |
 | `NATS_URL` | `nats://nats-svc:4222` | ConfigMap `broadcaster-config` |
-| `WEBHOOK_URL` | `http://webhook-receiver-svc:2345/` | ConfigMap `broadcaster-config` |
+| `BROADCAST_MODE` | `webhook` sends the messages, `log` only logs them (staging, exercise 4.9) | ConfigMap `broadcaster-config` |
+| `WEBHOOK_URL` | `http://webhook-receiver-svc:2345/` (not needed in `log` mode) | ConfigMap `broadcaster-config` |
 
 ## Health checks
 

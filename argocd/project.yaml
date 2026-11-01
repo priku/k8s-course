@@ -1,4 +1,4 @@
-# Exercise 4.8: Argo CD keeps the project in the state described on the branch release
+# Exercises 4.8 and 4.9: production follows the branch production, which every tag updates
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -8,7 +8,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/priku/k8s-course
-    targetRevision: release
+    targetRevision: production
     path: project/aks
   destination:
     server: https://kubernetes.default.svc
