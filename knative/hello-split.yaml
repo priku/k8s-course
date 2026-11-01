@@ -1,0 +1,21 @@
+# Exercise 5.6: a new revision, and half of the traffic to each revision
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  namespace: default
+  name: hello
+spec:
+  template:
+    spec:
+      containers:
+        - image: ghcr.io/knative/helloworld-go:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TARGET
+              value: "Knative"
+  traffic:
+    - latestRevision: true
+      percent: 50
+    - revisionName: hello-00001
+      percent: 50
