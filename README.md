@@ -66,3 +66,7 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 - [4.8.](https://github.com/priku/k8s-course/tree/4.8/project#gitops-exercise-48)
 - [4.9.](https://github.com/priku/k8s-course/tree/4.9/project#gitops-and-environments-exercises-48-and-49)
 - [4.10.](https://github.com/priku/k8s-course-config/tree/4.10) ([code](https://github.com/priku/k8s-course/tree/4.10/project#gitops-and-environments-exercises-48410))
+
+### Chapter 6
+
+- [5.1.](https://github.com/priku/k8s-course/tree/5.1/dummysite)
