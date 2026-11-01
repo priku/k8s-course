@@ -11,6 +11,8 @@ on:
       - 'log-output/**'
       - 'ping-pong/manifests/aks/**'
       - '.github/workflows/log-output.yaml'
+      # Documentation changes do not need a new version
+      - '!**/*.md'
 
 permissions:
   contents: write # to push to the branch release
