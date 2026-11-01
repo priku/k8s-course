@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,11 +26,15 @@ var (
 	imageMaxAge          time.Duration
 	imageRefreshInterval string
 	backendURL           string
+	backendHealthURL     string
 	todoMaxLength        int
+	appBroken            atomic.Bool
 )
 
 // imageMu makes sure only one request at a time checks and refreshes the image
 var imageMu sync.Mutex
+
+var healthClient = &http.Client{Timeout: 2 * time.Second}
 
 var pageTemplate = template.Must(template.New("page").Parse(pageHTML))
 
@@ -48,6 +53,7 @@ func main() {
 	imageDir = requireEnv("IMAGE_DIR")
 	imageURL = requireEnv("IMAGE_URL")
 	backendURL = requireEnv("BACKEND_URL")
+	backendHealthURL = requireEnv("BACKEND_HEALTH_URL")
 
 	var err error
 	imageRefreshInterval = requireEnv("IMAGE_REFRESH_INTERVAL")
@@ -67,12 +73,79 @@ func main() {
 	fmt.Printf("Image: %s, refreshed every %s, cached in %s\n", imageURL, imageMaxAge, imageDir)
 	fmt.Printf("Backend URL for the browser: %s, max todo length: %d\n", backendURL, todoMaxLength)
 
-	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/image", handleImage)
-
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, newHandler()); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func newHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/image", handleImage)
+	mux.HandleFunc("GET /livez", handleLiveness)
+	mux.HandleFunc("GET /readyz", handleReadiness)
+	mux.HandleFunc("POST /break", handleBreak)
+	return failWhenBroken(mux)
+}
+
+func failWhenBroken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if appBroken.Load() && r.URL.Path != "/livez" && r.URL.Path != "/readyz" && r.URL.Path != "/break" {
+			http.Error(w, "Application is restarting", http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func handleLiveness(w http.ResponseWriter, r *http.Request) {
+	if appBroken.Load() {
+		http.Error(w, "Application is unhealthy", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "OK")
+}
+
+func handleReadiness(w http.ResponseWriter, r *http.Request) {
+	if appBroken.Load() {
+		http.Error(w, "Application is restarting", http.StatusServiceUnavailable)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, backendHealthURL, nil)
+	if err != nil {
+		http.Error(w, "Invalid backend health URL", http.StatusInternalServerError)
+		return
+	}
+
+	resp, err := healthClient.Do(req)
+	if err != nil {
+		http.Error(w, "Todo backend is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Todo backend is not ready", http.StatusServiceUnavailable)
+		return
+	}
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		http.Error(w, "Could not read todo backend health response", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "OK")
+}
+
+func handleBreak(w http.ResponseWriter, r *http.Request) {
+	if appBroken.Swap(true) {
+		http.Error(w, "Application is already restarting", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+	fmt.Fprint(w, "Application is unhealthy; Kubernetes will restart it")
 }
 
 func getImagePath() string {
@@ -302,6 +375,28 @@ const pageHTML = `<!DOCTYPE html>
             background: #ccc;
             cursor: not-allowed;
         }
+        .break-button {
+            padding: 12px 24px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            margin-top: 15px;
+        }
+        .break-button:hover {
+            background: #b91c1c;
+        }
+        .break-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .break-status {
+            min-height: 1.5em;
+            margin-top: 8px;
+        }
         .char-count {
             color: #888;
             font-size: 0.85em;
@@ -369,6 +464,8 @@ const pageHTML = `<!DOCTYPE html>
                 <button type="submit" id="sendBtn">Send</button>
             </form>
             <p class="char-count" id="charCount">0/{{.MaxLength}} characters</p>
+            <button type="button" class="break-button" id="breakButton" onclick="breakApp()">Break the app</button>
+            <p class="break-status" id="breakStatus" aria-live="polite"></p>
 
             <h2 style="margin-top: 30px;">TODOs</h2>
             <ul class="todo-list" id="todoList">
@@ -481,6 +578,46 @@ const pageHTML = `<!DOCTYPE html>
                 console.error('Error creating todo:', error);
                 alert('Failed to create todo. Please try again.');
             }
+        }
+
+        async function breakApp() {
+            const button = document.getElementById('breakButton');
+            const status = document.getElementById('breakStatus');
+            button.disabled = true;
+            status.textContent = 'Kubernetes is restarting the app...';
+
+            try {
+                const response = await fetch('/break', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error('App did not accept the restart request');
+                }
+            } catch (error) {
+                console.error('Error breaking the app:', error);
+                status.textContent = 'Could not break the app. Please try again.';
+                button.disabled = false;
+                return;
+            }
+
+            const deadline = Date.now() + 90000;
+            const recoveryCheck = setInterval(async () => {
+                if (Date.now() >= deadline) {
+                    clearInterval(recoveryCheck);
+                    status.textContent = 'The app has not recovered yet. Check the Kubernetes pod status.';
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/livez', { cache: 'no-store' });
+                    if (response.ok) {
+                        clearInterval(recoveryCheck);
+                        status.textContent = 'The app restarted and is healthy again.';
+                        button.disabled = false;
+                        fetchTodos();
+                    }
+                } catch (error) {
+                    // The backend can be unreachable while Kubernetes replaces its container.
+                }
+            }, 2000);
         }
 
         // Load todos when page loads
