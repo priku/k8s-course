@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: wikipedia
+  name: wikipedia-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wikipedia
+  template:
+    metadata:
+      labels:
+        app: wikipedia
+    spec:
+      # All the containers share this. The page is rebuilt from Wikipedia whenever the pod starts.
+      volumes:
+        - name: www
+          emptyDir: {}
+      initContainers:
+        # Runs to completion before anything else starts, so nginx always has a page to serve
+        - name: fetch-first-page
+          image: curlimages/curl:8.23.0
+          command:
+            - curl
+            - --fail
+            - --silent
+            - --show-error
+            - --location
+            - --max-time
+            - "30"
+            - --output
+            - /www/index.html
+            - --url
+            - https://en.wikipedia.org/wiki/Kubernetes
+          volumeMounts:
+            - name: www
+              mountPath: /www
+        # A sidecar: an init container with restartPolicy Always keeps running next to nginx,
+        # and Kubernetes restarts it if it stops
+        - name: fetch-random-page
+          image: curlimages/curl:8.23.0
+          restartPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                delay=$(( MIN_DELAY_SECONDS + RANDOM % (MAX_DELAY_SECONDS - MIN_DELAY_SECONDS + 1) ))
+                echo "Next page in $delay seconds"
+                sleep "$delay"
+                # A separate file and mv, so that nginx never serves a half-written page,
+                # and a failed fetch leaves the previous page in place
+                if curl --fail --silent --show-error --location --max-time 30 \
+                    --output /www/next.tmp --url https://en.wikipedia.org/wiki/Special:Random; then
+                  mv /www/next.tmp /www/index.html
+                  echo "Fetched a new page"
+                fi
+              done
+          env:
+            - name: MIN_DELAY_SECONDS
+              value: "300"
+            - name: MAX_DELAY_SECONDS
+              value: "900"
+          volumeMounts:
+            - name: www
+              mountPath: /www
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      containers:
+        - name: nginx
+          image: nginx:1.31.8-alpine
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5
+          volumeMounts:
+            - name: www
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
