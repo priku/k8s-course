@@ -1,0 +1,21 @@
+# Exercise 5.3: splits the traffic to greeter-svc between the versions. The parent is a Service,
+# not a Gateway, so the waypoint of the namespace applies this to traffic inside the mesh.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: exercises
+  name: greeter
+spec:
+  parentRefs:
+    - group: ""
+      kind: Service
+      name: greeter-svc
+      port: 2345
+  rules:
+    - backendRefs:
+        - name: greeter-svc-1
+          port: 2345
+          weight: 75
+        - name: greeter-svc-2
+          port: 2345
+          weight: 25

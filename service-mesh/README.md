@@ -55,3 +55,34 @@ kubectl port-forward svc/kiali -n istio-system 20001:20001   # http://localhost:
 | Layer 4 policy: only the Gateway may call `productpage` | `curl` from another pod | Refused, exit code 56; through the Gateway `200` |
 | Waypoint and layer 7 policy: only `GET` from the `curl` pod | `DELETE`, and `GET` from `reviews-v1` | `RBAC: access denied` for both; `GET` from `curl` works |
 | Traffic split 90/10 with an HTTPRoute | 100 page loads | 96 to `reviews-v1`, 4 to `reviews-v2` |
+
+## Log output in the mesh (exercise 5.3)
+
+[Log output](../log-output) and [ping-pong](../ping-pong) run in the mesh in the namespace `exercises`, and Log output shows a greeting from the new [greeter](../greeter). The greeter has two versions, and the traffic to it is split so that version 1 gets 75% and version 2 gets 25%.
+
+```
+log-output → greeter-svc → waypoint ─ 75% → greeter-svc-1 → version 1
+                                    └ 25% → greeter-svc-2 → version 2
+```
+
+```bash
+docker build -t greeter:v5.3 ../greeter
+docker build -t log-reader:v5.3 ../log-output/reader
+k3d image import greeter:v5.3 log-reader:v5.3
+kubectl apply -f exercises-mesh.yaml                # ambient mode and the waypoint
+kubectl apply -f ../greeter/manifests/
+kubectl apply -f ../log-output/manifests/deployment.yaml
+curl http://localhost:8081/log-output
+```
+
+The pieces of the split:
+
+- [`exercises-mesh.yaml`](exercises-mesh.yaml) labels the namespace and creates the waypoint. Splitting HTTP traffic is a layer 7 feature, so `ztunnel` alone cannot do it.
+- [`../greeter/manifests/service.yaml`](../greeter/manifests/service.yaml) has three Services: `greeter-svc`, which the callers use, and `greeter-svc-1` and `greeter-svc-2`, which select one version each.
+- [`../greeter/manifests/httproute.yaml`](../greeter/manifests/httproute.yaml) is an HTTPRoute whose parent is the Service `greeter-svc`, not a Gateway, and which divides the traffic by weight.
+
+The applications did not change for any of this, apart from Log output calling the greeter.
+
+![Log output and the greeter versions in Kiali](images/log-output-kiali.png)
+
+Tested with 1 387 requests through the Ingress: version 1 answered 1 034 of them (74.5%) and version 2 answered 353 (25.5%). Kiali and Prometheus show the same ratio. All the pods of the namespace use `HBONE`, and joining the mesh restarted none of them.

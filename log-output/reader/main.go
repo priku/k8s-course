@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 var (
 	pingPongURL     = "http://ping-pong-svc:2345/count"
 	informationFile = "/etc/config/information.txt"
+	greeterURL      string
 	client          = &http.Client{Timeout: 2 * time.Second}
 )
 
@@ -28,6 +30,8 @@ func main() {
 	if path := os.Getenv("INFORMATION_FILE"); path != "" {
 		informationFile = path
 	}
+	// Exercise 5.3: only the mesh in k3d has a greeter, so without this the output has no greeting
+	greeterURL = os.Getenv("GREETER_URL")
 
 	http.HandleFunc("/", handleStatus)
 	http.HandleFunc("GET /healthz", handleHealth)
@@ -81,6 +85,9 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	// Combine output
 	output := fmt.Sprintf("file content: %s\nenv variable: MESSAGE=%s\n%s.\nPing / Pongs: %d",
 		strings.TrimSpace(string(information)), os.Getenv("MESSAGE"), strings.TrimSpace(string(logData)), count)
+	if greeterURL != "" {
+		output += "\ngreetings: " + fetchGreeting()
+	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprint(w, output)
@@ -105,4 +112,21 @@ func fetchPongCount() (int, error) {
 	}
 
 	return result.Count, nil
+}
+
+// fetchGreeting asks the greeter for a greeting. The rest of the output is still worth showing
+// without one, so a failure is shown instead of failing the whole response.
+func fetchGreeting() string {
+	resp, err := client.Get(greeterURL)
+	if err != nil {
+		fmt.Printf("Error fetching greeting: %v\n", err)
+		return "(not available)"
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		fmt.Printf("Error fetching greeting: status %d, %v\n", resp.StatusCode, err)
+		return "(not available)"
+	}
+	return string(body)
 }
