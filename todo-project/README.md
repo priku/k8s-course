@@ -26,8 +26,9 @@ The course project's frontend: a Go web server that serves the HTML page and the
 docker build -t todo-project:v4.5 .
 docker run -p 3000:3000 -e PORT=3000 -e IMAGE_DIR=/usr/src/app/files \
   -e IMAGE_URL=https://picsum.photos/1200 -e IMAGE_REFRESH_INTERVAL=10m \
-  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v4.5
+  -e BACKEND_URL=/api -e BACKEND_HEALTH_URL=http://localhost:3001/healthz -e TODO_MAX_LENGTH=140 todo-project:v4.5
 # Open http://localhost:3000 (the todo list needs the backend at /api, so use the cluster for that)
+curl http://localhost:3000/healthz   # ok; /readyz answers 503, since there is no backend here
 ```
 
 ## Deploying to Kubernetes (k3d)
@@ -43,6 +44,8 @@ Everything of the project, including todo-backend, runs in the namespace `projec
 ```bash
 kubectl apply -f ../manifests/project-namespace.yaml
 ```
+
+The Kubernetes configuration is in its own repository, so clone it next to this one first: `git clone https://github.com/priku/k8s-course-config`.
 
 Build, import and deploy the whole project with Kustomize (see [`../project`](../project) for the layout and for Azure Kubernetes Service):
 

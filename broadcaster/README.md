@@ -22,6 +22,17 @@ The exercise's external service here is [`mendhak/http-https-echo`](https://gith
 
 NATS itself is in [`base/nats.yaml`](https://github.com/priku/k8s-course-config/tree/main/base/nats.yaml) of the configuration repository, a plain Deployment instead of the course's Helm chart. Every environment gets its own that way, so its messages cannot reach the broadcaster of another environment.
 
+## Running locally
+
+```bash
+docker build -t broadcaster:v4.9 .
+docker run -p 3000:3000 -e PORT=3000 -e NATS_URL=nats://localhost:4222 -e BROADCAST_MODE=log broadcaster:v4.9
+curl http://localhost:3000/livez     # OK
+curl http://localhost:3000/healthz   # 503 until it is connected to NATS
+```
+
+In the clusters it is deployed with the rest of the project: see [`../project`](../project#deploy-to-a-local-cluster).
+
 ## Trying it
 
 ```bash
