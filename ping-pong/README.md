@@ -93,7 +93,7 @@ Test: apply everything but the database StatefulSet, then add it:
 
 ```bash
 kubectl delete statefulset postgres-ss -n exercises   # the claim and the data stay
-kubectl apply -f manifests/deployment.yaml -f ../log-output/manifests/deployment.yaml
+kubectl apply -f manifests/rollout.yaml -f ../log-output/manifests/deployment.yaml
 kubectl get pods -n exercises    # ping-pong 0/1, log-output 1/2 (Running, no restarts)
 kubectl apply -f manifests/statefulset.yaml
 kubectl get pods -n exercises    # a moment later ping-pong 1/1, log-output 2/2
@@ -199,7 +199,8 @@ Postgres only reads `POSTGRES_PASSWORD` when it creates an empty database, so af
 
 - `main.go` - HTTP server with the counter in Postgres (`/`, `/count`, `/healthz`)
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with `PORT=3000` and the database connection
+- `manifests/rollout.yaml` - Argo Rollouts `Rollout` with `PORT=3000` and the database connection
+- `manifests/analysistemplate.yaml` - The CPU analysis of the canary release
 - `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`
 - `manifests/aks/` - AKS versions of the Deployment (image from ACR), the Service and the StatefulSet (Azure Disk), and the Gateway with its HTTPRoute
 - `secrets/postgres-secret.enc.yaml` - SOPS-encrypted Secret with the database password
