@@ -1,11 +1,12 @@
 # The todo project with Kustomize
 
-The todo project is three applications that are always deployed together: the frontend [todo-project](../todo-project), [todo-backend](../todo-backend) with its Postgres, and the hourly CronJob [wiki-todo-generator](../wiki-todo-generator). Since exercise 3.5 they are deployed with [Kustomize](https://kubectl.docs.kubernetes.io/references/kustomize/), which is built into `kubectl` (`kubectl apply -k`).
+The todo project is four applications that are always deployed together: the frontend [todo-project](../todo-project), [todo-backend](../todo-backend) with its Postgres, the hourly CronJob [wiki-todo-generator](../wiki-todo-generator), and [broadcaster](../broadcaster) with NATS (exercise 4.6). Since exercise 3.5 they are deployed with [Kustomize](https://kubectl.docs.kubernetes.io/references/kustomize/), which is built into `kubectl` (`kubectl apply -k`).
 
 ```
 todo-project/manifests/kustomization.yaml          ┐ each app's manifests are a base:
 todo-backend/manifests/kustomization.yaml          │ what is the same in every cluster
-wiki-todo-generator/manifests/kustomization.yaml   ┘
+wiki-todo-generator/manifests/kustomization.yaml   │
+broadcaster/manifests/kustomization.yaml           ┘
 project/base/   → the three apps together
 project/k3d/    → base + Traefik Ingresses (local cluster, images from `k3d image import`)
 project/aks/    → base + Gateway API routing, images from the registry acrdwkakssc.azurecr.io
@@ -56,7 +57,7 @@ Changing the storage class of an existing claim is not allowed, so a cluster tha
 1. **Sign in to Azure** with `azure/login` and GitHub's OIDC token. Entra ID trusts the token because of a federated credential on the managed identity `id-dwk-github-actions` ([`../terraform/github.tf`](../terraform/github.tf)): only jobs of this repository that run in the GitHub environment `aks` can use the identity. There are no passwords or keys in GitHub, only the IDs of the identity, tenant and subscription.
 2. **Start the cluster** if the nightly stop has stopped it.
 3. **Choose the namespace**: `main` goes to `project`, every other branch to a namespace of its own (exercise 3.7, see below).
-4. **Build and push** the three images to ACR, tagged `<namespace>-<commit SHA>`.
+4. **Build and push** the images of the project to ACR, tagged `<namespace>-<commit SHA>`.
 5. **Deploy** with Kustomize: `kustomize edit set namespace` and `kustomize edit set image` put the namespace and the new tags into `project/aks`, and `kustomize build | kubectl apply` applies it. The database password is decrypted with SOPS using the workflow's own age key (the environment secret `SOPS_AGE_KEY`); `.sops.yaml` encrypts the project's Secret for it and for the personal key, and other Secrets for the personal key only.
 6. **Wait** for the rollouts and write the address of the Gateway to the job summary.
 
@@ -99,7 +100,7 @@ GitHub runs workflows for branch delete events only from the default branch, so 
 gh workflow run project-cleanup.yaml -f branch=<deleted branch>
 ```
 
-Production images pile up too, three for every deployment of `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `project-*` images older than a week, keeping the five newest of each repository, and untagged manifests. The hand-built version tags such as `v2.9` are not touched.
+Production images pile up too, a set for every deployment of `main`. The ACR task `purge-old-project-images` ([`../terraform/acr-purge.tf`](../terraform/acr-purge.tf)) runs `acr purge` every Monday: it deletes `project-*` images older than a week, keeping the five newest of each repository, and untagged manifests. The hand-built version tags such as `v2.9` are not touched.
 
 GitHub environment `aks` (Settings → Environments) holds the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `SOPS_AGE_KEY`.
 

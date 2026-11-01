@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: todo-backend
-          image: todo-backend:v4.5
+          image: todo-backend:v4.6
           imagePullPolicy: IfNotPresent
           # Exercise 4.2. Readiness: the database answers. Liveness: the process answers; it does not
           # check the database, so that a database outage does not restart the backend.

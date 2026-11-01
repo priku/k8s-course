@@ -13,6 +13,7 @@ on:
       - 'todo-project/**'
       - 'todo-backend/**'
       - 'wiki-todo-generator/**'
+      - 'broadcaster/**'
       - 'db-backup/**'
       - 'project/**'
       - '.github/workflows/project.yaml'
@@ -81,7 +82,7 @@ jobs:
       - name: Build and publish the images
         run: |
           az acr login --name "${REGISTRY%%.*}"
-          for app in todo-project todo-backend wiki-todo-generator db-backup; do
+          for app in todo-project todo-backend wiki-todo-generator db-backup broadcaster; do
             docker build --tag "$REGISTRY/$app:$IMAGE_TAG" "$app"
             docker push "$REGISTRY/$app:$IMAGE_TAG"
           done
@@ -122,13 +123,14 @@ jobs:
           if [ "$NAMESPACE" = "project" ]; then
             kustomize edit add component ../components/db-backup
           fi
-          for app in todo-project todo-backend wiki-todo-generator db-backup; do
+          for app in todo-project todo-backend wiki-todo-generator db-backup broadcaster; do
             kustomize edit set image "$app=$REGISTRY/$app:$IMAGE_TAG"
           done
           kustomize build . | kubectl apply -f -
           kubectl rollout status statefulset postgres-ss -n "$NAMESPACE" --timeout=10m
           kubectl rollout status deployment todo-backend-dep -n "$NAMESPACE" --timeout=10m
           kubectl rollout status deployment todo-project-dep -n "$NAMESPACE" --timeout=10m
+          kubectl rollout status deployment broadcaster-dep -n "$NAMESPACE" --timeout=10m
 
       - name: Show the address
         run: |

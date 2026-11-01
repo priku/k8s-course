@@ -61,3 +61,4 @@ Exercise 3.12: the log of a new todo in Azure Monitor (Log Analytics workspace `
 - [4.3.](https://github.com/priku/k8s-course/tree/4.3/monitoring#prometheus-query-exercise-43)
 - [4.4.](https://github.com/priku/k8s-course/tree/4.4/ping-pong#canary-release-exercise-44)
 - [4.5.](https://github.com/priku/k8s-course/tree/4.5/todo-backend#api) ([todo-project](https://github.com/priku/k8s-course/tree/4.5/todo-project))
+- [4.6.](https://github.com/priku/k8s-course/tree/4.6/broadcaster)

@@ -10,7 +10,10 @@ images:
     newTag: v4.5
   - name: todo-backend
     newName: acrdwkakssc.azurecr.io/todo-backend
-    newTag: v4.5
+    newTag: v4.6
+  - name: broadcaster
+    newName: acrdwkakssc.azurecr.io/broadcaster
+    newTag: v4.6
   - name: wiki-todo-generator
     newName: acrdwkakssc.azurecr.io/wiki-todo-generator
     newTag: v2.9

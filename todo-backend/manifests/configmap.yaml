@@ -5,6 +5,7 @@ metadata:
   name: todo-backend-config
 data:
   TODO_MAX_LENGTH: "140"
+  NATS_URL: nats://nats-svc:4222
   # Database connection, as the standard Postgres client variables.
   # The Postgres StatefulSet creates the same user and database from these.
   PGHOST: postgres-svc
