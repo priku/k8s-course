@@ -18,14 +18,15 @@ The course project's frontend: a Go web server that serves the HTML page and the
 - **2.9:** [wiki-todo-generator](../wiki-todo-generator) adds a `Read <random Wikipedia URL>` todo every hour; Enter in the input now sends the todo
 - **3.5:** The project is deployed with Kustomize, locally and to Azure Kubernetes Service (see [`../project`](../project))
 - **4.2:** Readiness (`/readyz`) and liveness (`/healthz`) probes, and a **Break the app** button that makes the liveness probe fail (see [`../project`](../project/README.md#health-checks-exercise-42))
+- **4.5:** The page has separate **Todo** and **Done** lists, and a button on each todo moves it to the other list (`PUT /api/todos/<id>`)
 
 ## Running locally
 
 ```bash
-docker build -t todo-project:v4.2 .
+docker build -t todo-project:v4.5 .
 docker run -p 3000:3000 -e PORT=3000 -e IMAGE_DIR=/usr/src/app/files \
   -e IMAGE_URL=https://picsum.photos/1200 -e IMAGE_REFRESH_INTERVAL=10m \
-  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v4.2
+  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v4.5
 # Open http://localhost:3000 (the todo list needs the backend at /api, so use the cluster for that)
 ```
 
@@ -47,10 +48,10 @@ Build, import and deploy the whole project with Kustomize (see [`../project`](..
 
 ```bash
 sops --decrypt ../todo-backend/secrets/postgres-secret.enc.yaml | kubectl apply -f -   # database password
-docker build -t todo-project:v4.2 .
-docker build -t todo-backend:v4.2 ../todo-backend
+docker build -t todo-project:v4.5 .
+docker build -t todo-backend:v4.5 ../todo-backend
 docker build -t wiki-todo-generator:v2.9 ../wiki-todo-generator
-k3d image import todo-project:v4.2 todo-backend:v4.2 wiki-todo-generator:v2.9
+k3d image import todo-project:v4.5 todo-backend:v4.5 wiki-todo-generator:v2.9
 kubectl apply -k ../project/k3d   # frontend, backend + Postgres, CronJob, Ingresses
 # Open http://localhost:8081, add a todo and reload: it stays in the list
 kubectl get all,ingress,pvc -n project
@@ -67,7 +68,7 @@ The browser talks to both apps through the same Ingress and origin, so no CORS i
 
 The page has an input for a new todo and a **Send** button (or Enter). The input accepts at most `TODO_MAX_LENGTH` characters (140, set as `maxlength`), shows a character counter and the button refuses empty or too long todos.
 
-On load the page calls `GET /api/todos` and renders the list; **Send** posts `{"text": "..."}` to `POST /api/todos` and reloads the list. Todo texts are inserted with `textContent`, so HTML in a todo is shown as text instead of being run. The todos are stored by todo-backend in Postgres, so they survive restarts (see [its README](../todo-backend/README.md#database)).
+On load the page calls `GET /api/todos` and renders the **Todo** and **Done** lists; **Send** posts `{"text": "..."}` to `POST /api/todos` and reloads them. **Mark as done** and **Mark as not done** send `{"done": true}` or `{"done": false}` to `PUT /api/todos/<id>` and reload them too. Todo texts are inserted with `textContent`, so HTML in a todo is shown as text instead of being run. The todos are stored by todo-backend in Postgres, so they survive restarts (see [its README](../todo-backend/README.md#database)).
 
 ## Image caching
 

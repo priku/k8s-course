@@ -24,7 +24,7 @@ spec:
             claimName: todo-project-image-pvc
       containers:
         - name: todo-project
-          image: todo-project:v4.2
+          image: todo-project:v4.5
           imagePullPolicy: IfNotPresent
           # Exercise 4.2. Readiness: not broken and todo-backend (so the database) answers.
           # Liveness: not broken with the button; three failures in a row restart the container.
