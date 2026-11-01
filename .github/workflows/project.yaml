@@ -3,6 +3,7 @@ name: Release the project
 # Exercise 4.8: GitOps. Every push to main that changes the project builds its images, pushes them
 # to the Azure Container Registry and writes their tags to the branch release. Argo CD in the
 # cluster follows that branch, so this workflow never touches the cluster.
+# The image tag project-<sha> is the form that the weekly ACR purge recognizes.
 on:
   push:
     branches:

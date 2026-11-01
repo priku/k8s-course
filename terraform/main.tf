@@ -32,7 +32,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name    = "system"
     vm_size = var.vm_size
     # Cluster autoscaler: normally var.node_count nodes, one more when pods do not fit,
-    # for example with several branch environments (each has its own Gateway and Postgres)
+    # for example with several environments (each has its own Gateway and Postgres)
     auto_scaling_enabled        = true
     min_count                   = var.node_count
     max_count                   = var.max_node_count

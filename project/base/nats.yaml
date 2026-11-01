@@ -1,5 +1,5 @@
 # NATS for the messages from todo-backend to broadcaster (exercise 4.6). Every environment has
-# its own, so that a branch environment's messages never reach the broadcaster of another one.
+# its own, so that the messages of one environment never reach the broadcaster of another one.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
