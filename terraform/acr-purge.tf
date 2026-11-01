@@ -2,8 +2,7 @@
 # Weekly purge of old production images. Every deployment of main pushes three images
 # (`project-<sha>`, and `main-<sha>` from before exercise 3.7); this ACR task deletes the
 # ones older than a week, keeping the five newest of each repository, plus untagged
-# manifests. Branch images are deleted when the branch is (project-cleanup.yaml), and
-# hand-built version tags such as v2.9 do not match the filter.
+# manifests. Hand-built version tags such as v2.9 do not match the filter.
 # ==============================================================================
 resource "azurerm_container_registry_task" "purge_old_images" {
   name                  = "purge-old-project-images"
