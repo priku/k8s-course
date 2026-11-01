@@ -17,7 +17,6 @@ The course project's frontend: a Go web server that serves the HTML page and the
 - **2.8:** The todos are saved in Postgres by [todo-backend](../todo-backend), so they survive restarts
 - **2.9:** [wiki-todo-generator](../wiki-todo-generator) adds a `Read <random Wikipedia URL>` todo every hour; Enter in the input now sends the todo
 - **3.5:** The project is deployed with Kustomize, locally and to Azure Kubernetes Service (see [`../project`](../project))
-- **4.2:** The frontend readiness probe follows the backend's database health, and a button deliberately breaks the frontend so its liveness probe restarts it
 
 ## Running locally
 
@@ -25,8 +24,7 @@ The course project's frontend: a Go web server that serves the HTML page and the
 docker build -t todo-project:v2.9 .
 docker run -p 3000:3000 -e PORT=3000 -e IMAGE_DIR=/usr/src/app/files \
   -e IMAGE_URL=https://picsum.photos/1200 -e IMAGE_REFRESH_INTERVAL=10m \
-  -e BACKEND_URL=/api -e BACKEND_HEALTH_URL=http://localhost:3001/healthz \
-  -e TODO_MAX_LENGTH=140 todo-project:v2.9
+  -e BACKEND_URL=/api -e TODO_MAX_LENGTH=140 todo-project:v2.9
 # Open http://localhost:3000 (the todo list needs the backend at /api, so use the cluster for that)
 ```
 
@@ -70,19 +68,6 @@ The page has an input for a new todo and a **Send** button (or Enter). The input
 
 On load the page calls `GET /api/todos` and renders the list; **Send** posts `{"text": "..."}` to `POST /api/todos` and reloads the list. Todo texts are inserted with `textContent`, so HTML in a todo is shown as text instead of being run. The todos are stored by todo-backend in Postgres, so they survive restarts (see [its README](../todo-backend/README.md#database)).
 
-## Health probes and recovery (exercise 4.2)
-
-The frontend's `GET /livez` checks that its HTTP server responds. Its `GET /readyz` checks the backend's in-cluster `GET /healthz`, so the frontend is ready only when todo-backend can connect to Postgres. The backend has its own readiness probe on `/healthz` and liveness probe on `/livez`. Database startup failures therefore keep the backend unready without causing liveness restarts.
-
-The **Break the app** button sends `POST /break` to the frontend. The frontend stops serving normal requests and fails its liveness and readiness probes. Kubernetes restarts the frontend container; its in-memory broken state resets on startup, and the frontend becomes ready again once the backend and database are healthy.
-
-To observe recovery, keep watching the pods and click the button in the project UI:
-
-```bash
-kubectl get pods -n project --watch
-kubectl logs -f deployment/todo-backend-dep -n project
-```
-
 ## Image caching
 
 The page shows a random image from `IMAGE_URL` (a 1200px image from [Lorem Picsum](https://picsum.photos/1200)), served by the app at `/image`:
@@ -109,7 +94,6 @@ The app has no defaults in the code: every setting is an env variable, and the a
 | `IMAGE_URL` | `https://picsum.photos/1200` | ConfigMap `todo-project-config` |
 | `IMAGE_REFRESH_INTERVAL` | `10m` (a Go duration) | ConfigMap `todo-project-config` |
 | `BACKEND_URL` | `/api` (todo-backend as the browser sees it) | ConfigMap `todo-project-config` |
-| `BACKEND_HEALTH_URL` | `http://todo-backend-svc:2345/healthz` (backend service inside the cluster) | ConfigMap `todo-project-config` |
 | `TODO_MAX_LENGTH` | `140` | ConfigMap `todo-backend-config` of [todo-backend](../todo-backend), so both apps check the same limit |
 
 `envFrom` brings in every key of `todo-project-config`, and `configMapKeyRef` picks the single key from the backend's ConfigMap. The page is an `html/template`, so the values are escaped correctly in HTML and JavaScript.
@@ -125,8 +109,8 @@ kubectl rollout restart deployment/todo-project-dep -n project
 
 - `main.go` - HTTP server, image download and caching, page template with the todo list JavaScript
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with liveness and backend-dependent readiness probes, env from the ConfigMaps, image cache volume at `/usr/src/app/files`
-- `manifests/configmap.yaml` - ConfigMap `todo-project-config` (image URL and interval, browser and in-cluster backend URLs)
+- `manifests/deployment.yaml` - Deployment with `PORT` and `IMAGE_DIR`, env from the ConfigMaps, image cache volume at `/usr/src/app/files`
+- `manifests/configmap.yaml` - ConfigMap `todo-project-config` (image URL and interval, backend URL)
 - `manifests/service.yaml` - ClusterIP Service (port 2345 → 3000)
 - `manifests/kustomization.yaml` - Kustomize base with the files above; the routing (Ingress in k3d, Gateway in AKS) is in [`../project`](../project)
 - `manifests/persistentvolumeclaim.yaml` - 100Mi claim for the image cache

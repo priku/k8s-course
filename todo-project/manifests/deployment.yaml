@@ -35,20 +35,6 @@ spec:
             limits:
               cpu: 250m
               memory: 64Mi
-          livenessProbe:
-            httpGet:
-              path: /livez
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 2
           envFrom:
             - configMapRef:
                 name: todo-project-config

@@ -9,7 +9,6 @@ REST API that stores the todos of the [todo project](../todo-project). The todos
 - **2.6:** Port and maximum todo length come from env variables (Deployment and ConfigMap)
 - **2.8:** Todos are saved in Postgres, run as a StatefulSet with one replica; the backend reaches it through a ConfigMap and a Secret
 - **2.10:** Request logging as JSON lines, including every created and every rejected todo, searchable in Grafana
-- **4.2:** Readiness checks the database and liveness checks that the backend HTTP server responds
 
 ## API
 
@@ -17,8 +16,7 @@ REST API that stores the todos of the [todo project](../todo-project). The todos
 |---|---|---|---|
 | `GET` | `/todos` | | `200` with a JSON array of todos |
 | `POST` | `/todos` | `{"text": "Buy milk"}` | `201` with the new todo; `400` if the text is empty or over `TODO_MAX_LENGTH` (140) characters |
-| `GET` | `/healthz` | | `200 OK` when Postgres is reachable; otherwise `503` |
-| `GET` | `/livez` | | `200 OK` while the backend HTTP server is responding |
+| `GET` | `/healthz` | | `200 OK` |
 
 A todo looks like this:
 
@@ -87,7 +85,7 @@ kubectl logs -n project deployment/todo-backend-dep | grep 'todo rejected'
 
 - The pod `postgres-ss-0` gets its own PersistentVolumeClaim `data-postgres-ss-0` from `volumeClaimTemplates` (the cluster's default storage class: `local-path` in k3d, an Azure Disk in AKS), mounted at `/var/lib/postgresql` as Postgres 18 expects.
 - The backend creates the table `todos` at startup. The database fills in `id` (`gen_random_uuid()`), `done` and `created_at`, and `INSERT ... RETURNING` gives the new row back. The text is passed as a query parameter, never put into the SQL.
-- The backend retries the connection for a minute at startup, since the headless Service only resolves once Postgres is ready. Its readiness probe calls `GET /healthz`, which answers `503` if the database is not reachable. The liveness probe calls `GET /livez`; this endpoint does not depend on Postgres, so a slow database startup does not cause a restart loop.
+- The backend retries the connection for a minute at startup, since the headless Service only resolves once Postgres is ready. `GET /healthz` answers `503` if the database is not reachable.
 
 How the backend reaches the database, without any connection string in the code:
 
@@ -125,7 +123,7 @@ kubectl rollout restart deployment/todo-backend-dep deployment/todo-project-dep 
 
 - `main.go` - HTTP API with the todos in Postgres
 - `Dockerfile` - Multi-stage build (Go 1.27, Alpine 3.24)
-- `manifests/deployment.yaml` - Deployment with liveness and database-dependent readiness probes, `PORT=3000` and env from the ConfigMap
+- `manifests/deployment.yaml` - Deployment with `PORT=3000` and env from the ConfigMap
 - `manifests/configmap.yaml` - ConfigMap `todo-backend-config` with `TODO_MAX_LENGTH` and the database connection
 - `manifests/statefulset.yaml` - Postgres StatefulSet and its headless Service `postgres-svc`
 - `secrets/postgres-secret.enc.yaml` - SOPS-encrypted Secret with the database password

@@ -81,21 +81,15 @@ func main() {
 	cfg := db.Config().ConnConfig
 	slog.Info("Connected to database", "database", cfg.Database, "host", cfg.Host, "port", cfg.Port)
 
-	handler := newHandler()
-
-	slog.Info("Todo-backend server started", "port", port, "max_todo_length", maxTodoLength)
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		fatal("Server stopped", "error", err)
-	}
-}
-
-func newHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /todos", handleGetTodos)
 	mux.HandleFunc("POST /todos", handleCreateTodo)
 	mux.HandleFunc("GET /healthz", handleHealth)
-	mux.HandleFunc("GET /livez", handleLiveness)
-	return logRequests(mux)
+
+	slog.Info("Todo-backend server started", "port", port, "max_todo_length", maxTodoLength)
+	if err := http.ListenAndServe(":"+port, logRequests(mux)); err != nil {
+		fatal("Server stopped", "error", err)
+	}
 }
 
 // statusRecorder remembers the status code a handler writes, for the request log
@@ -117,7 +111,7 @@ func logRequests(next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		// Health checks would drown the interesting lines, so log them only when they fail
-		if (r.URL.Path == "/healthz" || r.URL.Path == "/livez") && rec.status == http.StatusOK {
+		if r.URL.Path == "/healthz" && rec.status == http.StatusOK {
 			return
 		}
 		slog.Info("request",
@@ -246,11 +240,6 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Database unavailable")
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "OK")
-}
-
-func handleLiveness(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
 }
